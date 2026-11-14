@@ -382,7 +382,7 @@ class WaterHeaterCard extends RcCard {
             temp: m.temp != null ? this._deg(m.temp, false) : "",
             big: sh?.big,
             label: sh?.label,
-            drops: m.share != null ? Math.round(m.share * 5) : 0,
+            drops: m.share != null ? Math.round(m.share * 5) : Math.min(5, m.showers ?? 0),
             litres: m.litres != null ? this._t("litres", { n: this._fmt(m.litres, 0) }) : "",
             note: this._note(m),
             heatPump: m.heatPump,
@@ -412,7 +412,7 @@ class WaterHeaterCard extends RcCard {
     const relay = !m.wh && m.id ? `<button class="pb act-relay">${whIcon(WH_SVG.relay)}<span>${rcEsc(this._t(m.relayOn ? "stop" : "heat_now"))}</span></button>` : "";
     const step =
       m.wh && m.target != null
-        ? `<span class="seg" role="group" aria-label="${rcEsc(this._t("ed_temperature"))}"><button class="act-lower" aria-label="${rcEsc(this._t("lower"))}"${m.target <= m.min ? " disabled" : ""}>−</button><b>${rcEsc(this._deg(m.target))}</b><button class="act-raise" aria-label="${rcEsc(this._t("raise"))}"${m.target >= m.max ? " disabled" : ""}>+</button></span>`
+        ? `<span class="seg" role="group" aria-label="${rcEsc(this._t("target", { t: this._deg(m.target) }))}"><button class="act-lower" aria-label="${rcEsc(this._t("lower"))}"${m.target <= m.min ? " disabled" : ""}>−</button><b>${rcEsc(this._deg(m.target))}</b><button class="act-raise" aria-label="${rcEsc(this._t("raise"))}"${m.target >= m.max ? " disabled" : ""}>+</button></span>`
         : "";
     return modes || boost || away || relay || step ? `<div class="ctl">${relay}${modes}${boost}${away}${step}</div>` : "";
   }

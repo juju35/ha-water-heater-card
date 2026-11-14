@@ -1351,7 +1351,7 @@ const WH_NAME = /cumulus|chauffe.?eau|water.?heater|ballon|boiler|warm.?wasser|e
 // The modes that are a boost, an absence or a heat pump.
 const WH_BOOST = /(boost|high_demand|turbo|rapid|fast|max|schnell)/;
 const WH_AWAY = /(away|vacation|holiday|absence|abwesen|urlaub|frost|hors_gel)/;
-const WH_HEAT_PUMP = /heat.?pump|heatpump|hybrid|thermodynam|explorer|aquarea|nuos|lydos.?hybrid|calypso|geyser|wwk|wpl|aerotop|pac\b/i;
+const WH_HEAT_PUMP = /heat.?pump|heatpump|hybrid|thermodynam|explorer|aquarea|nuos|lydos.?hybrid|calypso|wwk|wpl|aerotop|pac\b/i;
 
 const whNorm = (s) =>
   String(s ?? "")

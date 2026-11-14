@@ -76,6 +76,24 @@ test("full card: header, illustration, tiles and controls while heating", () => 
   assert.doesNotMatch(html, /act-boost/, "boost is a mode: no extra button");
   assert.match(html, /act-away"[^>]*aria-label="Away"/);
   assert.match(html, /55 °C<\/b>/);
+  assert.match(html, /class="seg" role="group" aria-label="Target 55 °C"/);
+});
+
+test("illustration: the drops follow the showers when the share of hot water is unknown; a geyser is no heat pump", () => {
+  const h = makeHass();
+  h.entities["sensor.explorer_showers"] = { device_id: "explorer", platform: "ariston" };
+  h.states["sensor.explorer_showers"] = st("sensor.explorer_showers", "4", { friendly_name: "Water heater Showers" });
+  delete h.states["sensor.explorer_v40_water_volume"];
+  delete h.states["water_heater.explorer"].attributes.current_temperature;
+  const card = make("water-heater-card", HEATER, h);
+  assert.equal(card._items.share, null);
+  assert.equal(card._items.showers, 4);
+  assert.equal((card.shadowRoot.innerHTML.match(/scale\(.62\)" d="[^"]+" fill="#e8590c"/g) || []).length, 4);
+  const g = makeHass();
+  g.devices.geyser = { name: "Geyser", model: "Geyserwise Max" };
+  g.entities["water_heater.geyser"] = { device_id: "geyser", platform: "geyserwise" };
+  g.states["water_heater.geyser"] = st("water_heater.geyser", "eco", { operation_mode: "eco", operation_list: ["eco", "boost"], current_temperature: 60, temperature: 60 });
+  assert.equal(make("water-heater-card", { entity: "water_heater.geyser" }, g)._items.heatPump, false);
 });
 
 test("actions: target, away, mode", () => {
