@@ -1,0 +1,7 @@
+{
+  "name": "Water Heater Card",
+  "render_readme": true,
+  "content_in_root": false,
+  "filename": "ha-water-heater-card.js",
+  "homeassistant": "2024.8.0"
+}

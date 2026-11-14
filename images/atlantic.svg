@@ -1,7 +1,7 @@
 <svg width="336" height="64" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 210 40">
 	<style>
 		tspan { white-space:pre }
-		.shp0 { fill: #e42313 } 
+		.shp0 { fill: #e42313 }
 	</style>
 	<g id="Calque 1">
 		<path id="&lt;Path&gt;" class="shp0" d="M174.38 11.41L165.9 11.41L165.9 38.51L174.38 38.51L174.38 11.41Z" />
