@@ -65,17 +65,17 @@ The cards share the look of the other ha-* cards (header with a status pill, tin
 
 Any integration with a `water_heater` entity works: the card reads its mode, temperature, target and away mode, then the other entities of its device (power, energy, hot water, boost, away, errors) by device class, unit and name. Among them:
 
-| Integration | Water heaters |
-|---|---|
-| [Overkiz](https://www.home-assistant.io/integrations/overkiz/) (built in) | Atlantic, Thermor and Sauter, heat pump (Explorer, Aéromax…) and electric (Cozytouch) |
-| [Rheem EcoNet](https://www.home-assistant.io/integrations/econet/) (built in) | Rheem, Ruud |
-| [A. O. Smith](https://www.home-assistant.io/integrations/aosmith/) (built in) | A. O. Smith heat pump water heaters |
-| [Viessmann ViCare](https://www.home-assistant.io/integrations/vicare/) (built in) | Viessmann domestic hot water |
-| [Ariston NET remotethermo](https://github.com/fustom/ariston-remotethermo-home-assistant-v3) (Marketplace) | Ariston Lydos, Nuos, Velis |
-| [Daikin Onecta](https://github.com/jwillemsen/daikin_onecta) (Marketplace) | Daikin Altherma hot water tanks |
-| [myVAILLANT](https://github.com/signalkraft/mypyramid-ha) (Marketplace) | Vaillant domestic hot water |
-| Panasonic Aquarea, Stiebel Eltron, Bosch and other `water_heater` integrations | Their water heaters |
-| A smart plug or a relay (Shelly, Sonoff, Zigbee…) | A plain cumulus: set its switch as `entity`, its probe as `temperature` |
+| | Integration | Water heaters |
+|:---:|---|---|
+| <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/images/atlantic.svg" alt="Atlantic" height="15">&nbsp;<img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/images/thermor.svg" alt="Thermor" height="12">&nbsp;<img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/images/sauter.svg" alt="Sauter" height="15"> | [Overkiz](https://www.home-assistant.io/integrations/overkiz/) (built in) | Atlantic, Thermor and Sauter, heat pump (Explorer, Aéromax…) and electric (Cozytouch) |
+| <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/images/rheem.svg" alt="Rheem" height="21"> | [Rheem EcoNet](https://www.home-assistant.io/integrations/econet/) (built in) | Rheem, Ruud |
+| <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/images/ao-smith.svg" alt="A. O. Smith" height="17"> | [A. O. Smith](https://www.home-assistant.io/integrations/aosmith/) (built in) | A. O. Smith heat pump water heaters |
+| <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/images/viessmann.svg" alt="Viessmann" height="15"> | [Viessmann ViCare](https://www.home-assistant.io/integrations/vicare/) (built in) | Viessmann domestic hot water |
+| <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/images/ariston.svg" alt="Ariston" height="17"> | [Ariston NET remotethermo](https://github.com/fustom/ariston-remotethermo-home-assistant-v3) (Marketplace) | Ariston Lydos, Nuos, Velis |
+| <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/images/daikin.svg" alt="Daikin" height="21"> | [Daikin Onecta](https://github.com/jwillemsen/daikin_onecta) (Marketplace) | Daikin Altherma hot water tanks |
+| <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/images/vaillant.svg" alt="Vaillant" height="17"> | [myVAILLANT](https://github.com/signalkraft/mypyramid-ha) (Marketplace) | Vaillant domestic hot water |
+| <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/images/panasonic.svg" alt="Panasonic" height="21">&nbsp;<img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/images/stiebel-eltron.svg" alt="Stiebel Eltron" height="13">&nbsp;<img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/images/bosch.svg" alt="Bosch" height="21"> | Panasonic Aquarea, Stiebel Eltron, Bosch and other `water_heater` integrations | Their water heaters |
+|  | A smart plug or a relay (Shelly, Sonoff, Zigbee…) | A plain cumulus: set its switch as `entity`, its probe as `temperature` |
 
 When the card picks the wrong entity for a role, or misses one, set it in `entities` (see [Configuration](#configuration)) and open an issue with the water heater's entities so that the discovery learns it.
 
