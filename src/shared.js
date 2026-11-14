@@ -1349,7 +1349,8 @@ const RC_I18N = {
 // A water heater by name, for the switches of a relay.
 const WH_NAME = /cumulus|chauffe.?eau|water.?heater|ballon|boiler|warm.?wasser|ecs|hot.?water|geyser|scaldabagno|calentador|termo/i;
 // The modes that are a boost, an absence or a heat pump.
-const WH_BOOST = /(boost|high_demand|turbo|rapid|fast|max|schnell)/;
+// `high_demand` is a lasting mode of the core integrations (EcoNet, A. O. Smith), not a boost.
+const WH_BOOST = /(boost|turbo|rapid|fast|schnell)/;
 const WH_AWAY = /(away|vacation|holiday|absence|abwesen|urlaub|frost|hors_gel)/;
 const WH_HEAT_PUMP = /heat.?pump|heatpump|hybrid|thermodynam|explorer|aquarea|nuos|lydos.?hybrid|calypso|wwk|wpl|aerotop|pac\b/i;
 
@@ -1414,11 +1415,13 @@ const whFind = (hass, entity, overrides = {}) => {
     const all = ids.filter((id) => id !== entity && st(id) && test(id));
     return (prefer && all.find(prefer)) || all[0];
   };
-  const COLD = /inlet|cold|froid|bottom|bas\b|kalt|entr[ée]e|unten/i;
-  const AIR = /outdoor|outside|ambient|air|ext[ée]rieur|room|pi[eè]ce|au[sß]en|cpu|board|compressor|evaporat/i;
+  // A "bottom" probe is hot water (Overkiz, ViCare): not the cold inlet.
+  const COLD = /inlet|cold|froid|kalt|entr[ée]e|zulauf/i;
+  const AIR = /outdoor|outside|ambient|air|ext[ée]rieur|room|pi[eè]ce|au[sß]en|cpu|board|compressor|evaporat|device|internal|chip|relay/i;
   const HOT = /hot.?water|eau.?chaude|v40|mixed|warm.?wasser|available|disponible|remaining|restant|reserve|r[ée]serve|acqua.?calda|agua.?caliente/i;
   const r = {};
-  const temps = ids.filter((id) => id !== entity && dom(id) === "sensor" && dc(id) === "temperature" && st(id));
+  // Diagnostic sensors (a smart plug's own temperature) are left out.
+  const temps = ids.filter((id) => id !== entity && dom(id) === "sensor" && dc(id) === "temperature" && st(id) && !hass.entities?.[id]?.entity_category);
   r.temperature = temps.find((id) => !COLD.test(whLabel(hass, id)) && !AIR.test(whLabel(hass, id)));
   r.inlet = temps.find((id) => COLD.test(whLabel(hass, id)) && !AIR.test(whLabel(hass, id)));
   r.level = pick((id) => dom(id) === "sensor" && unit(id) === "%" && num(id) && !dc(id) && named(id, new RegExp(`${HOT.source}|level|niveau|fill|charge`, "i")));
@@ -1442,12 +1445,15 @@ const whFind = (hass, entity, overrides = {}) => {
 const whCelsius = (v, unit) => (v == null ? null : /F/.test(unit || "") ? ((v - 32) * 5) / 9 : v);
 
 // The hot water: the share of the tank that is hot (0–1), the volume at 40 °C and the showers, from what the
-// integration reports, else estimated from the water's temperature with a mixing model: hot water at T makes
-// capacity × (T − cold) / (40 − cold) litres at 40 °C.
+// integration reports, else estimated from the water's temperature with a mixing model: hot water at T (above 40 °C)
+// makes capacity × (T − cold) / (40 − cold) litres at 40 °C; the share is that volume against the tank at its target.
 const whHotWater = ({ level, litres, showers, temp, target, cold = 15, capacity = 200, shower = 50 }) => {
-  const full = target != null && target > 40 ? (capacity * (target - cold)) / (40 - cold) : (capacity * 40) / 25;
-  const l40 = litres ?? (temp != null ? Math.max(0, (capacity * (temp - cold)) / (40 - cold)) : null);
-  const share = level != null ? level / 100 : litres != null ? l40 / full : temp != null && target != null && target > cold ? (temp - cold) / (target - cold) : null;
+  // A cold water at 35 °C or more is a misread probe: back to 15 °C, so that 40 − cold stays a real span.
+  const c = cold != null && cold < 35 ? cold : 15;
+  const at40 = (t) => (t > 40 ? (capacity * (t - c)) / (40 - c) : 0);
+  const full = at40(target != null && target > 40 ? target : 55);
+  const l40 = litres ?? (temp != null ? at40(temp) : null);
+  const share = level != null ? level / 100 : l40 != null && full > 0 ? l40 / full : null;
   return {
     share: share == null ? null : Math.max(0, Math.min(1, share)),
     litres: l40 == null ? null : Math.round(l40 / 5) * 5,

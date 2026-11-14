@@ -361,7 +361,7 @@ class WaterHeaterCard extends RcCard {
   _draw(m) {
     const c = this._config;
     const dark = this._dark();
-    const parts = [m.state, m.raw, m.name, m.sub, m.temp, m.target, m.mode, m.watts && Math.round(m.watts / 100), m.energy, m.share, m.showers, m.litres, m.tariff, m.error, m.awayEnd?.getTime(), m.boostOn, m.relayOn, dark];
+    const parts = [m.state, m.raw, m.name, m.sub, m.temp, m.target, m.mode, m.watts && Math.round(m.watts / 100), m.energy, m.share, m.showers, m.litres, m.tariff, m.error, m.awayEnd?.getTime(), m.boostOn, m.relayOn, m.awayOn, m.awayAttr, m.awayId, m.boostId, m.modes, m.min, m.max, m.step, m.unit, m.inlet, m.heatPump, dark];
     if (!this._changed(parts)) return;
     const status = this._status(m);
     const head = `

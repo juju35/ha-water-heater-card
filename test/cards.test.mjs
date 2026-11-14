@@ -48,8 +48,16 @@ test("hot water: reported, else estimated from the temperature", () => {
   assert.equal(est.share, 1);
   assert.equal(est.litres, 320);
   assert.equal(est.showers, 6);
-  const half = wh.whHotWater({ temp: 35, target: 55, cold: 15, capacity: 200 });
-  assert.equal(half.share, 0.5);
+  const part = wh.whHotWater({ temp: 50, target: 55, cold: 15, capacity: 200 });
+  assert.equal(part.share, 0.875);
+  assert.equal(part.litres, 280);
+  // Lukewarm water makes no water at 40 °C.
+  const tepid = wh.whHotWater({ temp: 30, target: 60 });
+  assert.deepEqual([tepid.share, tepid.litres, tepid.showers], [0, 0, 0]);
+  // A cold water reading 35 °C or more (a misread probe) never divides by zero.
+  const odd = wh.whHotWater({ temp: 55, target: 55, cold: 40 });
+  assert.ok(Number.isFinite(odd.litres));
+  assert.equal(odd.litres, 320);
   assert.equal(wh.whHotWater({ litres: 186, target: 55 }).showers, 3);
   assert.equal(wh.whHotWater({ level: 72, showers: 4 }).share, 0.72);
   assert.equal(wh.whHotWater({}).share, null);
@@ -126,6 +134,31 @@ test("states: ready, boost, away, off, error, offline", () => {
   const noPower = makeHass({ temp: 40, target: 55 });
   delete noPower.states["sensor.explorer_power"];
   assert.equal(make("water-heater-card", HEATER, noPower)._items.state, "heating", "well below the target");
+});
+
+test("discovery: a bottom probe is no cold inlet, a plug's own temperature is no water temperature", () => {
+  const h = makeHass();
+  h.entities["sensor.explorer_bottom_tank_water_temperature"] = { device_id: "explorer", platform: "overkiz" };
+  h.states["sensor.explorer_bottom_tank_water_temperature"] = st("sensor.explorer_bottom_tank_water_temperature", "40", { device_class: "temperature", unit_of_measurement: "°C", friendly_name: "Water heater Bottom tank water temperature" });
+  assert.notEqual(wh.whFind(h, "water_heater.explorer").inlet, "sensor.explorer_bottom_tank_water_temperature");
+  h.entities["sensor.cumulus_device_temperature"] = { device_id: "plug", platform: "shelly", entity_category: "diagnostic" };
+  h.states["sensor.cumulus_device_temperature"] = st("sensor.cumulus_device_temperature", "47", { device_class: "temperature", unit_of_measurement: "°C", friendly_name: "Cumulus Device temperature" });
+  assert.equal(wh.whFind(h, "switch.cumulus").temperature, undefined);
+});
+
+test("high_demand is a lasting mode, not a boost", () => {
+  const h = makeHass({ mode: "high_demand", temp: 55, power: "0" });
+  assert.equal(make("water-heater-card", HEATER, h)._items.state, "ready");
+});
+
+test("the away button follows the away mode while the water heater is off", () => {
+  const h = makeHass({ mode: "off" });
+  const card = make("water-heater-card", HEATER, h);
+  assert.match(card.shadowRoot.innerHTML, /aria-label="Away"/);
+  const on = { ...h, states: { ...h.states, "water_heater.explorer": { ...h.states["water_heater.explorer"], attributes: { ...h.states["water_heater.explorer"].attributes, away_mode: "on" } } } };
+  card.hass = on;
+  assert.equal(card._items.state, "off");
+  assert.match(card.shadowRoot.innerHTML, /Back home/);
 });
 
 test("a cumulus on a relay: the probe, the plug's power, heat now / stop", () => {
