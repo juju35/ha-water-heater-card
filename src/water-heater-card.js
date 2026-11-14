@@ -31,9 +31,13 @@ const whScene = ({ state, dark, uid, share, temp, big, label, drops, litres, not
   const txt = dark ? "#f0f0f0" : "#1f2329";
   const mut = dark ? "#a0a6ae" : "#5c6470";
   const pale = state === "away" || state === "off" || state === "offline" || state === "error";
-  const hot = pale ? ["#d98a6a", "#e9b79b"] : ["#f2622e", "#ffa25e"];
-  const cold = pale ? ["#9fc3e3", "#7ea5cc"] : ["#7cbcf0", "#3b7fd4"];
-  const s = share ?? 0.5;
+  // No reading at all: an empty grey tank, not a made-up half.
+  const unknown = share == null;
+  const greyTank = dark ? ["#3d444e", "#353b44"] : ["#e3e7ec", "#d5dae1"];
+  const hot = unknown ? greyTank : pale ? ["#d98a6a", "#e9b79b"] : ["#f2622e", "#ffa25e"];
+  const cold = unknown ? greyTank : pale ? ["#9fc3e3", "#7ea5cc"] : ["#7cbcf0", "#3b7fd4"];
+  const s = unknown ? 1 : share;
+  const ink = dark ? whMix(acc, "#f0f0f0", 0.6) : whMix(acc, "#1f2329", 0.55);
   // The tank: a cylinder with domed ends; the heat pump, when there is one, sits on top of a shorter tank.
   const [x, w] = [78, 78];
   const [y, h] = heatPump ? [54, 110] : [40, 124];
@@ -76,13 +80,13 @@ const whScene = ({ state, dark, uid, share, temp, big, label, drops, litres, not
   const drop = (i) =>
     `<path transform="translate(${228 + i * 17} ${88}) scale(.62)" d="M12 3c-3.5 4.5-6 7.6-6 10.5a6 6 0 0 0 12 0C18 10.6 15.5 7.5 12 3z" fill="${i < drops ? acc : dark ? "#3a414b" : "#dfe4ea"}"/>`;
   const panel = big
-    ? `<g filter="url(#ds${uid})"><rect x="214" y="34" width="196" height="124" rx="16" fill="${dark ? "rgba(20,22,26,.72)" : "rgba(255,255,255,.82)"}" stroke="${dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)"}"/></g>
+    ? `<g class="glass"><g filter="url(#ds${uid})"><rect x="214" y="34" width="196" height="124" rx="16" fill="${dark ? "rgba(20,22,26,.72)" : "rgba(255,255,255,.82)"}" stroke="${dark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)"}"/></g>
     <text x="230" y="78" font-family="Roboto,sans-serif" font-size="34" font-weight="500" fill="${txt}">${rcEsc(big)}<tspan dx="6" font-size="13" font-weight="400" fill="${mut}">${rcEsc(label)}</tspan></text>
     ${[0, 1, 2, 3, 4].map(drop).join("")}
     ${litres ? `<text x="230" y="130" font-family="Roboto,sans-serif" font-size="12" fill="${mut}">${rcEsc(litres)}</text>` : ""}
-    ${note ? `<text x="230" y="${litres ? 148 : 130}" font-family="Roboto,sans-serif" font-size="12" font-weight="500" fill="${acc}">${rcEsc(note)}</text>` : ""}`
+    ${note ? `<text x="230" y="${litres ? 148 : 130}" font-family="Roboto,sans-serif" font-size="12" font-weight="500" fill="${ink}">${rcEsc(whClip(note, 28))}</text>` : ""}</g>`
     : note
-      ? `<text x="214" y="104" font-family="Roboto,sans-serif" font-size="13" font-weight="500" fill="${acc}">${rcEsc(note)}</text>`
+      ? `<text class="glass" x="214" y="104" font-family="Roboto,sans-serif" font-size="13" font-weight="500" fill="${ink}">${rcEsc(whClip(note, 28))}</text>`
       : "";
   const level = share != null ? `<path d="M${x + w + 4} ${lvl} h10" stroke="${mut}" stroke-width="1.2"/><text x="${x + w + 18}" y="${lvl + 4}" font-family="Roboto,sans-serif" font-size="11" font-weight="500" fill="${mut}">${Math.round(share * 100)} %</text>` : "";
   const tempY = s > 0.25 ? iy + Math.min((ih * s) / 2 + 5, ih * s - 3) : iy + 18;
@@ -115,10 +119,18 @@ const whScene = ({ state, dark, uid, share, temp, big, label, drops, litres, not
       <rect x="${ix}" y="${iy}" width="${iw}" height="${ih}" rx="${iw / 2}" ry="14" fill="none" stroke="#000" stroke-opacity=".08"/>
     </g>
     ${level}
-    ${temp ? `<text x="${cx}" y="${tempY}" text-anchor="middle" font-family="Roboto,sans-serif" font-size="15" font-weight="700" fill="#fff">${rcEsc(temp)}</text>` : ""}
+    ${temp ? `<text x="${cx}" y="${tempY}" text-anchor="middle" font-family="Roboto,sans-serif" font-size="17" font-weight="700" fill="#fff" stroke="rgba(0,0,0,.45)" stroke-width="3" stroke-linejoin="round" paint-order="stroke">${rcEsc(temp)}</text>` : ""}
     ${panel}
   </svg>`;
 };
+
+// `a` mixed with `b` (hex colours, p of a): coloured SVG text darkened toward the text colour to read at 4.5:1.
+const whMix = (a, b, p) => {
+  const n = (h, i) => Number.parseInt(h.slice(1 + 2 * i, 3 + 2 * i), 16);
+  return `#${[0, 1, 2].map((i) => Math.round(n(a, i) * p + n(b, i) * (1 - p)).toString(16).padStart(2, "0")).join("")}`;
+};
+// SVG text cut to `max` characters with an ellipsis: SVG text never wraps, a long error would run out of its box.
+const whClip = (t, max) => (t && t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t);
 
 const whIcon = (d) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
@@ -175,7 +187,11 @@ class WaterHeaterCard extends RcCard {
       const ids = whDeviceEntities(h)[c.device] || [];
       return ids.find((id) => id.startsWith("water_heater.")) || ids.find((id) => /^(switch|input_boolean)\./.test(id));
     }
-    return whHeaters(h)[0];
+    // The water heaters of the home are scanned again only when the registry changes (or none was found yet).
+    const memo = (this._memo ||= {});
+    let found = rcMemo(memo, "heaters", [h.entities], () => whHeaters(h));
+    if (!found.length) found = memo.heaters.value = whHeaters(h);
+    return found[0];
   }
 
   _fmt(v, digits) {
@@ -199,7 +215,8 @@ class WaterHeaterCard extends RcCard {
     const c = this._config;
     const id = this._entityId();
     const ent = id ? h.states[id] : undefined;
-    const e = rcMemo((this._memo ||= {}), "find", [id, c.entities, h.entities, h.devices], () => whFind(h, id, c.entities || {}));
+    // The roles read the states too (a sensor unavailable after a restart is skipped): found again when they change.
+    const e = rcMemo((this._memo ||= {}), "find", [id, c.entities, h.entities, h.devices, h.states], () => whFind(h, id, c.entities || {}));
     const st = (role) => (e[role] ? h.states[e[role]] : undefined);
     const on = (role) => st(role)?.state === "on";
     const wh = !!id?.startsWith("water_heater.");
@@ -208,8 +225,10 @@ class WaterHeaterCard extends RcCard {
     // The water's temperature: the configured sensor, else the water heater's, else a probe on its device.
     const probe = c.temperature ? h.states[c.temperature] : st("temperature");
     const unit = c.temperature || !wh ? probe?.attributes.unit_of_measurement || "°C" : h.config?.unit_system?.temperature || "°C";
-    const temp = c.temperature || !wh ? whNum(probe) : (a.current_temperature ?? whNum(probe));
-    const target = wh ? (a.temperature ?? a.target_temp_high ?? null) : null;
+    // Numbers, even when an integration sends them as text ("55"): "55" + 1 must not become 551.
+    const num = (v) => (v == null || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
+    const temp = c.temperature || !wh ? whNum(probe) : (num(a.current_temperature) ?? whNum(probe));
+    const target = wh ? (num(a.temperature) ?? num(a.target_temp_high)) : null;
     const mode = wh ? (a.operation_mode ?? ent?.state) : null;
     const nmode = whNorm(mode);
     const watts = whWatts(st("power"));
@@ -247,6 +266,7 @@ class WaterHeaterCard extends RcCard {
     const modes = (wh ? a.operation_list || [] : []).filter((x) => whNorm(x) !== "off" && !WH_AWAY.test(whNorm(x)));
     return {
       id,
+      none: !ent && !id,
       ids: e,
       wh,
       state,
@@ -256,9 +276,9 @@ class WaterHeaterCard extends RcCard {
       unit,
       temp,
       target,
-      min: a.min_temp ?? 30,
-      max: a.max_temp ?? 70,
-      step: a.target_temp_step || 1,
+      min: num(a.min_temp) ?? 30,
+      max: num(a.max_temp) ?? 70,
+      step: num(a.target_temp_step) || 1,
       mode,
       modeLabel: mode && nmode !== "off" ? this._modeLabel(ent, mode) : null,
       modes: modes.slice(0, 4).map((x) => ({ value: x, label: this._modeLabel(ent, x), icon: whModeIcon(x) })),
@@ -303,7 +323,6 @@ class WaterHeaterCard extends RcCard {
 
   _status(m) {
     const label = this._t(`st_${m.state}`);
-    if (m.state === "away" && m.awayEnd) return this._t("away_until", { d: this._date(m.awayEnd) });
     return ["heating", "ready", "boost"].includes(m.state) && m.temp != null ? `${label} · ${this._deg(m.temp)}` : label;
   }
 
@@ -361,66 +380,74 @@ class WaterHeaterCard extends RcCard {
   _draw(m) {
     const c = this._config;
     const dark = this._dark();
-    const parts = [m.state, m.raw, m.name, m.sub, m.temp, m.target, m.mode, m.watts && Math.round(m.watts / 100), m.energy, m.share, m.showers, m.litres, m.tariff, m.error, m.awayEnd?.getTime(), m.boostOn, m.relayOn, m.awayOn, m.awayAttr, m.awayId, m.boostId, m.modes, m.min, m.max, m.step, m.unit, m.inlet, m.heatPump, dark];
-    if (!this._changed(parts)) return;
     const status = this._status(m);
+    const sh = this._showers(m);
+    const tiles = this._tileList(m);
+    const scene = {
+      state: m.state,
+      share: m.share != null ? Math.round(m.share * 100) / 100 : null,
+      temp: m.temp != null ? this._deg(m.temp, false) : "",
+      big: sh?.big,
+      label: sh?.label,
+      drops: m.share != null ? Math.round(m.share * 5) : Math.min(5, m.showers ?? 0),
+      litres: m.litres != null ? this._t("litres", { n: this._fmt(m.litres, 0) }) : "",
+      note: this._note(m),
+      heatPump: m.heatPump,
+    };
+    // Redrawn only when something shown changes: a reading moving by 0.001, the same on screen, must not rebuild the
+    // card (and restart the bubbles and the fan).
+    const parts = [m.none, m.raw, m.name, m.sub, status, scene, tiles, m.error, m.mode, m.modes, m.target, m.min, m.max, m.boostOn, m.relayOn, m.awayOn, m.awayAttr, m.awayId, m.boostId, dark];
+    if (!this._changed(parts)) return;
     const head = `
       <div class="head${c.navigation_path ? " nav" : ""}"${c.navigation_path ? ' role="link" tabindex="0"' : ""}>
-        <div class="badge"><ha-icon icon="${WH_ICONS[m.state]}"></ha-icon></div>
+        <div class="badge"><ha-icon icon="${m.none ? "mdi:water-boiler" : WH_ICONS[m.state]}"></ha-icon></div>
         <div class="tt"><div class="title">${rcEsc(m.name)}</div>${m.sub ? `<div class="subt">${rcEsc(m.sub)}</div>` : ""}</div>
-        <span class="pill" title="${rcEsc(m.raw || status)}"><span class="pt">${rcEsc(status)}</span></span>
+        ${m.none ? "" : `<span class="pill" title="${rcEsc(m.raw || status)}"><span class="pt">${rcEsc(status)}</span></span>`}
       </div>`;
-    const sh = this._showers(m);
-    const scene =
+    // No water heater: say so, rather than draw a tank.
+    if (m.none) {
+      this._paint("off", `${head}<div class="none">${rcEsc(this._t("no_heater"))}</div>`, "");
+      return;
+    }
+    // The glass panel's text gets too small on a narrow card: the same as a line under the scene (shown by CSS).
+    const line = [sh && `${sh.big} ${sh.label}`, scene.litres, scene.note].filter(Boolean).join(" · ");
+    const html =
       c.show_scene === false
         ? ""
-        : `<button class="sc" title="${rcEsc(m.raw || status)}">${whScene({
-            state: m.state,
-            dark,
-            uid: (this._uid ||= Math.random().toString(36).slice(2, 8)),
-            share: m.share,
-            temp: m.temp != null ? this._deg(m.temp, false) : "",
-            big: sh?.big,
-            label: sh?.label,
-            drops: m.share != null ? Math.round(m.share * 5) : Math.min(5, m.showers ?? 0),
-            litres: m.litres != null ? this._t("litres", { n: this._fmt(m.litres, 0) }) : "",
-            note: this._note(m),
-            heatPump: m.heatPump,
-            animate: this._animate(),
-          })}</button>`;
+        : `<button class="sc" title="${rcEsc(m.raw || status)}">${whScene({ ...scene, share: m.share, dark, uid: (this._uid ||= Math.random().toString(36).slice(2, 8)), animate: this._animate() })}</button>${line ? `<div class="sl">${rcEsc(line)}</div>` : ""}`;
     const error = m.error && c.show_scene === false ? `<div class="err" role="alert">${rcEsc(m.error)}</div>` : "";
-    this._paint(m.state, head + scene + error, this._tileList(m).map((t) => this._tile(t)).join(""));
+    this._paint(m.state, head + html + error, tiles.map((t) => this._tile(t)).join(""));
   }
 
   _afterGrid() {
     const m = this._items;
-    if (!m || this._config.show_controls === false || m.state === "offline") return "";
+    if (!m || m.none || this._config.show_controls === false || m.state === "offline") return "";
     const modes =
       m.modes.length > 1
         ? `<span class="mseg" role="group" aria-label="${rcEsc(this._t("t_mode"))}">${m.modes
-            .map((x) => `<button class="md${x.value === m.mode ? " on" : ""}" data-mode="${rcEsc(x.value)}" aria-pressed="${x.value === m.mode}">${whIcon(WH_SVG[x.icon])}<span>${rcEsc(x.label)}</span></button>`)
+            .map((x) => `<button class="md${x.value === m.mode ? " on" : ""}" data-mode="${rcEsc(x.value)}" data-k="mode-${rcEsc(x.value)}" aria-pressed="${x.value === m.mode}">${whIcon(WH_SVG[x.icon])}<span>${rcEsc(x.label)}</span></button>`)
             .join("")}</span>`
         : "";
     const boostInModes = m.modes.some((x) => WH_BOOST.test(whNorm(x.value)));
-    const boost = m.boostId && !boostInModes ? `<button class="gb act-boost${m.boostOn ? " on" : ""}" aria-pressed="${m.boostOn}">${whIcon(WH_SVG.boost)}<span>${rcEsc(this._t("m_boost"))}</span></button>` : "";
+    const boost = m.boostId && !boostInModes ? `<button class="gb act-boost${m.boostOn ? " on" : ""}" data-k="boost" aria-pressed="${m.boostOn}">${whIcon(WH_SVG.boost)}<span>${rcEsc(this._t("m_boost"))}</span></button>` : "";
     const away =
       m.awayAttr || m.awayId
-        ? m.awayOn
-          ? `<button class="gb act-away on" aria-pressed="true">${whIcon(WH_SVG.back)}<span>${rcEsc(this._t("back"))}</span></button>`
-          : `<button class="gb ic act-away" aria-pressed="false" aria-label="${rcEsc(this._t("away"))}" title="${rcEsc(this._t("away"))}">${whIcon(WH_SVG.back)}</button>`
+        ? `<button class="gb act-away${m.awayOn ? " on" : ""}" data-k="away" aria-pressed="${m.awayOn}">${whIcon(WH_SVG.back)}<span>${rcEsc(this._t(m.awayOn ? "back" : "away"))}</span></button>`
         : "";
-    const relay = !m.wh && m.id ? `<button class="pb act-relay">${whIcon(WH_SVG.relay)}<span>${rcEsc(this._t(m.relayOn ? "stop" : "heat_now"))}</span></button>` : "";
+    const relay = !m.wh && m.id ? `<button class="pb act-relay" data-k="relay">${whIcon(WH_SVG.relay)}<span>${rcEsc(this._t(m.relayOn ? "stop" : "heat_now"))}</span></button>` : "";
     const step =
       m.wh && m.target != null
-        ? `<span class="seg" role="group" aria-label="${rcEsc(this._t("target", { t: this._deg(m.target) }))}"><button class="act-lower" aria-label="${rcEsc(this._t("lower"))}"${m.target <= m.min ? " disabled" : ""}>−</button><b>${rcEsc(this._deg(m.target))}</b><button class="act-raise" aria-label="${rcEsc(this._t("raise"))}"${m.target >= m.max ? " disabled" : ""}>+</button></span>`
+        ? `<span class="seg" role="group" aria-label="${rcEsc(this._t("target", { t: this._deg(m.target) }))}"><button class="act-lower" data-k="lower" aria-label="${rcEsc(this._t("lower"))}"${m.target <= m.min ? " disabled" : ""}>−</button><b aria-live="polite">${rcEsc(this._deg(m.target))}</b><button class="act-raise" data-k="raise" aria-label="${rcEsc(this._t("raise"))}"${m.target >= m.max ? " disabled" : ""}>+</button></span>`
         : "";
-    return modes || boost || away || relay || step ? `<div class="ctl">${relay}${modes}${boost}${away}${step}</div>` : "";
+    // Two rows: the modes, then the other actions with the target at the end, so that the target never ends up alone.
+    const row2 = relay || boost || away || step ? `<div class="ctl">${relay}${boost}${away}${step}</div>` : "";
+    return modes ? `<div class="ctl">${modes}</div>${row2}` : row2;
   }
 
   _bindAfter(root) {
     const m = this._items;
     const h = this._hass;
-    if (!m) return;
+    if (!m || m.none) return;
     const on = (sel, fn) =>
       root.querySelector(sel)?.addEventListener("click", (ev) => {
         ev.stopPropagation();
@@ -441,9 +468,16 @@ class WaterHeaterCard extends RcCard {
         : rcCall(h, "switch", m.awayOn ? "turn_off" : "turn_on", { entity_id: m.awayId }),
     );
     on(".act-relay", () => rcCall(h, m.id.split(".")[0], m.relayOn ? "turn_off" : "turn_on", { entity_id: m.id }));
+    // Quick presses add up: each step starts from the target asked last (until the water heater reports it), shown at once.
     const setTarget = (delta) => {
-      const value = Math.min(m.max, Math.max(m.min, m.target + delta * m.step));
-      if (value !== m.target) rcCall(h, "water_heater", "set_temperature", { entity_id: m.id, temperature: value });
+      const asked = this._targetAsked && this._targetAsked.id === m.id && Date.now() - this._targetAsked.at < 5000 ? this._targetAsked.value : null;
+      const from = asked ?? m.target;
+      const value = Math.min(m.max, Math.max(m.min, Math.round((from + delta * m.step) * 100) / 100));
+      if (value === from) return;
+      this._targetAsked = { id: m.id, value, at: Date.now() };
+      const shown = root.querySelector(".seg b");
+      if (shown) shown.textContent = this._deg(value);
+      rcCall(h, "water_heater", "set_temperature", { entity_id: m.id, temperature: value });
     };
     on(".act-lower", () => setTarget(-1));
     on(".act-raise", () => setTarget(1));
@@ -476,25 +510,34 @@ class WaterHeaterCard extends RcCard {
     .ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
     .pb, .gb, .seg button, .mseg button { all: unset; box-sizing: border-box; cursor: pointer; }
     .pb { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 16px; border-radius: 999px; font-size: 14px; font-weight: 500;
-          color: var(--c); background: color-mix(in srgb, var(--c) 15%, transparent); }
+          color: color-mix(in srgb, var(--c) 50%, var(--primary-text-color, #212121)); background: color-mix(in srgb, var(--c) 15%, transparent); }
     .pb:hover { background: color-mix(in srgb, var(--c) 24%, transparent); }
-    .mseg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; border-radius: 999px; background: var(--secondary-background-color, rgba(127,127,127,.1)); }
-    .mseg button { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 12px; border-radius: 999px; font-size: 13px; font-weight: 500;
+    .mseg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 2px; border-radius: 999px; background: var(--secondary-background-color, rgba(127,127,127,.1)); }
+    .mseg button { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px; border-radius: 999px; font-size: 13px; font-weight: 500;
                    color: var(--primary-text-color); }
     .mseg button:hover:not(.on) { background: color-mix(in srgb, var(--c) 10%, transparent); }
-    .mseg button.on, .gb.on { color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); }
+    .mseg button.on, .gb.on { color: color-mix(in srgb, var(--c) 50%, var(--primary-text-color, #212121)); background: color-mix(in srgb, var(--c) 16%, transparent); }
+    /* Away or off, the accent is grey: the active mode is marked by its background and weight, not dimmed. */
+    .lvl-away .mseg button.on, .lvl-off .mseg button.on { color: var(--primary-text-color); background: color-mix(in srgb, var(--primary-text-color) 12%, transparent); font-weight: 700; }
     .mseg svg { width: 15px; height: 15px; }
     .gb { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 14px; border-radius: 999px; font-size: 13px; font-weight: 500;
           color: var(--primary-text-color); background: var(--secondary-background-color, rgba(127,127,127,.1)); }
-    .gb.ic { width: 40px; padding: 0; justify-content: center; }
     .pb svg, .gb svg { width: 17px; height: 17px; }
-    .seg { display: inline-flex; align-items: center; min-height: 40px; padding: 0 3px; margin-left: auto; border-radius: 999px; background: var(--secondary-background-color, rgba(127,127,127,.1)); }
-    .seg button { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 18px; color: var(--primary-text-color); }
+    .seg { display: inline-flex; align-items: center; min-height: 44px; padding: 0 2px; margin-left: auto; border-radius: 999px; background: var(--secondary-background-color, rgba(127,127,127,.1)); }
+    .seg button { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 18px; color: var(--primary-text-color); }
     .seg button:hover:not([disabled]) { background: color-mix(in srgb, var(--c) 15%, transparent); }
     .seg button[disabled] { opacity: .35; cursor: default; }
     .seg b { min-width: 52px; text-align: center; font-size: 14px; font-weight: 500; }
     .pb:focus-visible, .gb:focus-visible, .seg button:focus-visible, .mseg button:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
-    @container (max-width: 300px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .none { margin-top: 10px; padding: 12px; border-radius: 12px; font-size: 13px; color: var(--secondary-text-color);
+            background: var(--secondary-background-color, rgba(127,127,127,.08)); }
+    .sl { display: none; margin-top: 6px; font-size: 13px; font-weight: 500; color: color-mix(in srgb, var(--c) 50%, var(--primary-text-color, #212121)); }
+    @container (max-width: 360px) { .glass { display: none; } .sl { display: block; } }
+    @container (max-width: 300px) {
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      /* Three tiles on two columns: the third spans the row rather than stand alone. */
+      .grid > :nth-child(3):last-child { grid-column: 1 / -1; }
+    }
   `;
 }
 

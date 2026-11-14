@@ -82,7 +82,7 @@ test("full card: header, illustration, tiles and controls while heating", () => 
   assert.match(html, /data-mode="eco"[\s\S]*data-mode="auto"[\s\S]*data-mode="boost"/);
   assert.doesNotMatch(html, /data-mode="off"/);
   assert.doesNotMatch(html, /act-boost/, "boost is a mode: no extra button");
-  assert.match(html, /act-away"[^>]*aria-label="Away"/);
+  assert.match(html, /act-away" data-k="away" aria-pressed="false">[\s\S]*?<span>Away<\/span>/);
   assert.match(html, /55 °C<\/b>/);
   assert.match(html, /class="seg" role="group" aria-label="Target 55 °C"/);
 });
@@ -154,11 +154,73 @@ test("high_demand is a lasting mode, not a boost", () => {
 test("the away button follows the away mode while the water heater is off", () => {
   const h = makeHass({ mode: "off" });
   const card = make("water-heater-card", HEATER, h);
-  assert.match(card.shadowRoot.innerHTML, /aria-label="Away"/);
+  assert.match(card.shadowRoot.innerHTML, /<span>Away<\/span>/);
   const on = { ...h, states: { ...h.states, "water_heater.explorer": { ...h.states["water_heater.explorer"], attributes: { ...h.states["water_heater.explorer"].attributes, away_mode: "on" } } } };
   card.hass = on;
   assert.equal(card._items.state, "off");
   assert.match(card.shadowRoot.innerHTML, /Back home/);
+});
+
+test("temperatures sent as text: the target steps as numbers; quick presses add up", () => {
+  const h = makeHass();
+  const a = h.states["water_heater.explorer"].attributes;
+  Object.assign(a, { temperature: "55", current_temperature: "54", min_temp: "50", max_temp: "62", target_temp_step: "1" });
+  const card = make("water-heater-card", HEATER, h);
+  click(card, ".act-raise");
+  click(card, ".act-raise");
+  click(card, ".act-lower");
+  assert.deepEqual(json(h.calls.map((c) => c[2].temperature)), [56, 57, 56]);
+  assert.equal(card._nodes[".seg b"].textContent, "56 °C");
+});
+
+test("roles found once their states arrive (after a restart)", () => {
+  const h = makeHass();
+  const early = { ...h, states: { ...h.states } };
+  delete early.states["sensor.explorer_v40_water_volume"];
+  delete early.states["sensor.explorer_power"];
+  const card = make("water-heater-card", HEATER, early);
+  assert.equal(card._items.watts, null);
+  card.hass = h;
+  assert.equal(card._items.litres, 185);
+  assert.equal(card._items.watts, 620);
+});
+
+test("redraws only when something shown changes", () => {
+  const h = makeHass();
+  const card = make("water-heater-card", HEATER, h);
+  let writes = 0;
+  let html = card.shadowRoot.innerHTML;
+  Object.defineProperty(card.shadowRoot, "innerHTML", { get: () => html, set: (v) => { writes++; html = v; } });
+  for (let i = 1; i <= 50; i++) {
+    card.hass = { ...h, states: { ...h.states, "sensor.explorer_energy_today": st("sensor.explorer_energy_today", String(2.1 + i * 0.0001), { device_class: "energy", unit_of_measurement: "kWh", friendly_name: "Water heater Energy today" }) } };
+  }
+  assert.equal(writes, 0);
+});
+
+test("no water heater: a message; no reading: a grey tank; a long error is cut in the scene", () => {
+  const none = makeHass();
+  none.states = {};
+  none.entities = {};
+  const card = make("water-heater-card", {}, none);
+  assert.match(card.shadowRoot.innerHTML, /No water heater found/);
+  assert.doesNotMatch(card.shadowRoot.innerHTML, /class="scene"/);
+  const bare = makeHass();
+  delete bare.states["sensor.explorer_v40_water_volume"];
+  delete bare.states["water_heater.explorer"].attributes.current_temperature;
+  const grey = make("water-heater-card", HEATER, bare);
+  assert.equal(grey._items.share, null);
+  assert.match(grey.shadowRoot.innerHTML, /stop-color="#e3e7ec"/);
+  const long = make("water-heater-card", HEATER, makeHass({ error: "E21 · Upper temperature probe fault, call the installer" }));
+  assert.match(long.shadowRoot.innerHTML, /<text[^>]*>E21 · Upper temperature pro…<\/text>/);
+  assert.match(long.shadowRoot.innerHTML, /class="sl">[^<]*call the installer/);
+});
+
+test("away: the pill says Away, the date is in the panel and the tile", () => {
+  const h = makeHass({ away: "on", power: "0" });
+  h.entities["sensor.explorer_away_end"] = { device_id: "explorer", platform: "overkiz" };
+  h.states["sensor.explorer_away_end"] = st("sensor.explorer_away_end", "2026-11-21T18:00:00+00:00", { device_class: "timestamp", friendly_name: "Water heater Away mode end" });
+  const card = make("water-heater-card", HEATER, h);
+  assert.equal(card._status(card._items), "Away");
 });
 
 test("a cumulus on a relay: the probe, the plug's power, heat now / stop", () => {
