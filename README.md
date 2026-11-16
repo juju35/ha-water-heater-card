@@ -27,7 +27,7 @@
   <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/images/bosch.svg" alt="Bosch" height="30">
 </p>
 
-An illustrated Lovelace card for Home Assistant's **water heaters**: the tank with its hot water above the cold, the showers left and the litres at 40 °C; power, energy and mode in three tiles; the modes, boost, away and the target temperature. It works with any `water_heater` entity, and with a plain cumulus switched by a smart plug or a relay.
+An illustrated Lovelace card for Home Assistant's **water heaters**: the tank with its hot water above the cold, the showers left and the litres at 40 °C; power, energy and mode in three tiles; the modes, boost, away and the target temperature. It works with any `water_heater` entity, with a plain cumulus switched by a smart plug or a relay, and with a cumulus driven by a PV router, read from its power meter.
 
 [![Open your Home Assistant instance and open a repository inside the Marketplace.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=juju35&repository=ha-water-heater-card&category=plugin)
 
@@ -52,8 +52,8 @@ The cards share the look of the other ha-* cards (header with a status pill, tin
 - **Hot water**: the integration's own figures when it reports them (a volume at 40 °C, a share in %, a number of showers), else an estimate from the water's temperature, the tank's `capacity` and the cold water's temperature (its sensor, else 15 °C), counted in showers of `shower_volume` litres
 - **States**: **heating** (orange: bubbles rise, the element glows, the heat pump's fan turns), **ready** (green), **boost** (pink: a boost mode or switch; *high_demand* is a lasting mode, shown as heating or ready), **away** (grey, until its end date when the integration gives one), **off**, **error** (red, the integration's fault in the panel), *offline* when the water heater cannot report. Heating comes from the water heater's heating sensor, else its power (above 50 W), else a water more than 3 °C below the target
 - **Header**: the water heater's name, its room and model, and a pill with the state and the temperature (*Heating · 54 °C*)
-- **Three tiles**, the ones that matter in each state among what the water heater reports: power, energy (today's when the sensor is a daily one), mode, `tariff` (off-peak / peak), the cold water's temperature, the end of an absence
-- **Controls**: the water heater's **modes** (its own list, *off* and *away* aside, up to four), **Boost** when it is a switch rather than a mode, **Away** / **Back home** (the away mode, or an away switch), the **target** in steps of the water heater (− 55 °C +, within its range); **Heat now** / **Stop** for a cumulus on a relay
+- **Three tiles**, the ones that matter in each state among what the water heater reports: power, energy (today's when the sensor is a daily one; with a grid / solar split, the total and the solar share — *Today 2.4 kWh · 35% solar*), mode, `tariff` (off-peak / peak), the cold water's temperature, the end of an absence
+- **Controls**: the water heater's **modes** (its own list, *off* and *away* aside, up to four), **Boost** when it is a switch rather than a mode, **Away** / **Back home** (the away mode, or an away switch), the **target** in steps of the water heater (− 55 °C +, within its range); **Heat now** / **Stop** for a cumulus on a relay (none for a PV-routed tank: the router decides)
 - A tap on the illustration opens the water heater's dialog
 - `show_scene: false` keeps the header, tiles and controls; `animations: false` stops the bubbles, the glow and the fan (also when the system asks for reduced motion); `show_controls: false` leaves the card read-only
 
@@ -76,6 +76,7 @@ Any integration with a `water_heater` entity works: the card reads its mode, tem
 | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/images/vaillant.svg" alt="Vaillant" height="17"> | [myVAILLANT](https://github.com/signalkraft/mypyramid-ha) (Marketplace) | Vaillant domestic hot water |
 | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/images/panasonic.svg" alt="Panasonic" height="21">&nbsp;<img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/images/stiebel-eltron.svg" alt="Stiebel Eltron" height="13">&nbsp;<img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/images/bosch.svg" alt="Bosch" height="21"> | Panasonic Aquarea, Stiebel Eltron, Bosch and other `water_heater` integrations | Their water heaters |
 |  | A smart plug or a relay (Shelly, Sonoff, Zigbee…) | A plain cumulus: set its switch as `entity`, its probe as `temperature` |
+|  | A PV router (Mk2PVRouter, MSunPV, F1ATB…) and a meter on the tank's line (Shelly EM, Modbus, the router's own) | A PV-routed cumulus: set its power sensor as `entity` (read-only), the grid and solar energy as `energy_grid` / `energy_solar` |
 
 When the card picks the wrong entity for a role, or misses one, set it in `entities` (see [Configuration](#configuration)) and open an issue with the water heater's entities so that the discovery learns it.
 
@@ -120,6 +121,14 @@ temperature: sensor.cumulus_temperature
 tariff: sensor.linky_tariff
 capacity: 200
 
+# A cumulus driven by a PV router: its power meter, today's energy split grid / solar
+type: custom:water-heater-card
+entity: sensor.water_heater_power
+tariff: sensor.linky_tariff
+entities:
+  energy_grid: sensor.water_heater_grid_energy_today
+  energy_solar: sensor.water_heater_solar_energy_today
+
 # Two lines on a phone dashboard
 type: custom:water-heater-mini-card
 entity: water_heater.explorer
@@ -134,7 +143,7 @@ entities:
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `entity` | string | the first water heater found | A `water_heater` entity, or the switch of a cumulus on a relay |
+| `entity` | string | the first water heater found | A `water_heater` entity, the switch of a cumulus on a relay, or the power sensor of a PV-routed cumulus (read-only, heating above 50 W) |
 | `title` | string | the water heater's name | Card title |
 | `show_title` | boolean | `true` | Show the title |
 | `navigation_path` | string | | A tap on the header opens this dashboard path |
@@ -146,7 +155,7 @@ entities:
 | `animations` | boolean | `true` | Bubbles, glowing element, turning fan |
 | `show_controls` | boolean | `true` | Modes, boost, away, target, heat now / stop |
 | `zoom` | boolean | `true` | Mini card: the zoom button |
-| `entities` | map | | Advanced (YAML): the entity of a role, over the discovery — `temperature`, `inlet`, `level`, `litres`, `showers`, `power`, `energy`, `heating`, `boost`, `away`, `away_end`, `error` |
+| `entities` | map | | Advanced (YAML): the entity of a role, over the discovery — `temperature`, `inlet`, `level`, `litres`, `showers`, `power`, `energy`, `energy_grid`, `energy_solar`, `heating`, `boost`, `away`, `away_end`, `error` |
 | `language` | string | Home Assistant's | Advanced: one of the [languages](#translations) |
 
 ## Screenshots
@@ -161,10 +170,10 @@ entities:
 | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-away.png" alt="Away" width="400"> | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-error.png" alt="Error" width="400"> | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-relay.png" alt="Cumulus on a relay" width="400"> |
 | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-away-dark.png" alt="Away, dark" width="400"> | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-error-dark.png" alt="Error, dark" width="400"> | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-relay-dark.png" alt="Cumulus on a relay, dark" width="400"> |
 
-| Without the illustration (`show_scene: false`) |
-|---|
-| <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-compact.png" alt="Without the illustration" width="400"> |
-| <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-compact-dark.png" alt="Without the illustration, dark" width="400"> |
+| PV-routed cumulus (grid / solar split) | Without the illustration (`show_scene: false`) |
+|---|---|
+| <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-pv.png" alt="PV-routed cumulus" width="400"> | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-compact.png" alt="Without the illustration" width="400"> |
+| <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-pv-dark.png" alt="PV-routed cumulus, dark" width="400"> | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-compact-dark.png" alt="Without the illustration, dark" width="400"> |
 
 **Heating animation**: bubbles rise from the element, which glows, and the heat pump's fan turns (still with `animations: false`, or when the system asks for reduced motion).
 
@@ -182,10 +191,10 @@ entities:
 ## How it works
 
 - **Water heater**: `entity`, else the first `water_heater` of the home, else the first switch named like a water heater (*cumulus*, *chauffe-eau*, *boiler*…)
-- **Roles**, on the water heater's device: `temperature` (a `temperature` sensor, not an outdoor or cold one), `inlet` (the cold water's), `level` (hot water in %), `litres` (a sensor in L, hot water at 40 °C), `showers`, `power`, `energy` (a daily one first), `heating` (a binary sensor: element, compressor, running), `boost` and `away` (switches), `away_end` (a timestamp or a datetime), `error` (a sensor named *error* / *fault*, or a `problem` binary sensor); `entities` sets any of them
+- **Roles**, on the water heater's device: `temperature` (a `temperature` sensor, not an outdoor or cold one), `inlet` (the cold water's), `level` (hot water in %), `litres` (a sensor in L, hot water at 40 °C), `showers`, `power`, `energy` (a daily one first), `energy_grid` and `energy_solar` (today's energy from the grid and from the solar surplus, by name: *grid* / *réseau*, *solar* / *solaire* / *PV*; together they replace `energy`), `heating` (a binary sensor: element, compressor, running), `boost` and `away` (switches), `away_end` (a timestamp or a datetime), `error` (a sensor named *error* / *fault*, or a `problem` binary sensor); `entities` sets any of them
 - **Hot water at 40 °C**, when not reported: capacity × (T − cold) / (40 − cold) above 40 °C, none at 40 °C or less; the share of hot water: that volume against the tank at its target. The cold water is its sensor (a *bottom* probe is hot water, not the inlet), else 15 °C, and 15 °C when it reads 35 °C or more
 - **Temperature**: diagnostic sensors (a smart plug's own temperature) are never the water's
-- **Actions**: `water_heater.set_operation_mode`, `water_heater.set_away_mode` (or the away switch), `water_heater.set_temperature` within the water heater's range and step, the boost switch, and `turn_on` / `turn_off` on a relay; nothing else
+- **Actions**: `water_heater.set_operation_mode`, `water_heater.set_away_mode` (or the away switch), `water_heater.set_temperature` within the water heater's range and step, the boost switch, and `turn_on` / `turn_off` on a relay (never on a sensor); nothing else
 
 ## Development
 

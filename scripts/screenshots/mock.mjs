@@ -2,7 +2,8 @@
 // its modes, target, away mode, power, daily energy and hot-water volume at 40 °C), and a cumulus on a smart plug.
 const st = (entity_id, state, attributes = {}) => ({ entity_id, state, attributes, last_changed: new Date().toISOString() });
 
-// `scene`: heating, ready, boost, away (until a date), error, relay (a cumulus on a plug, heating at off-peak).
+// `scene`: heating, ready, boost, away (until a date), error, relay (a cumulus on a plug, heating at off-peak), pv (a
+// cumulus driven by a PV router: its meter's power as the entity, today's energy split grid / solar).
 const SCENES = {
   heating: { mode: "auto", temp: 54, target: 55, power: "620", today: "2.1", litres: "186", away: "off", error: "No error" },
   ready: { mode: "eco", temp: 55, target: 55, power: "0", today: "3.4", litres: "240", away: "off", error: "No error" },
@@ -26,6 +27,22 @@ export const setup = (s) => {
     return {
       hass: { ...base, ...theme, states, entities, devices: { plug: { area_id: "utility", name: "Cumulus", model: "Shelly Plus 1PM" } } },
       config: { entity: "switch.cumulus", temperature: "sensor.cumulus_temperature", tariff: "sensor.tariff", capacity: 200, ...s.config },
+      open: s.open,
+    };
+  }
+  if (s.scene === "pv") {
+    const kwh = (id, v, name) => st(id, v, { device_class: "energy", unit_of_measurement: "kWh", friendly_name: name });
+    const states = {
+      "sensor.tank_power": st("sensor.tank_power", "1340", { device_class: "power", unit_of_measurement: "W", friendly_name: "Water heater" }),
+      "sensor.tank_grid_energy_today": kwh("sensor.tank_grid_energy_today", "1.56", "Water heater grid energy today"),
+      "sensor.tank_solar_energy_today": kwh("sensor.tank_solar_energy_today", "0.84", "Water heater solar energy today"),
+      "sensor.tank_temperature": st("sensor.tank_temperature", "51", { device_class: "temperature", unit_of_measurement: "°C" }),
+      "sensor.tariff": st("sensor.tariff", "Peak", { friendly_name: "Tariff" }),
+    };
+    const entities = Object.fromEntries(Object.keys(states).filter((id) => id.startsWith("sensor.tank")).map((id) => [id, { entity_id: id, device_id: "meter", platform: "modbus" }]));
+    return {
+      hass: { ...base, ...theme, states, entities, devices: { meter: { area_id: "utility", name: "Water heater", model: "PV router" } } },
+      config: { entity: "sensor.tank_power", temperature: "sensor.tank_temperature", tariff: "sensor.tariff", capacity: 200, ...s.config },
       open: s.open,
     };
   }

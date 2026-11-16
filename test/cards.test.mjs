@@ -242,6 +242,49 @@ test("a cumulus on a relay: the probe, the plug's power, heat now / stop", () =>
   assert.match(off.shadowRoot.innerHTML, /Heat now/);
 });
 
+test("a PV-routed tank: a power sensor as entity, read-only, today's energy split grid / solar", () => {
+  const h = makeHass();
+  const pw = (v) => st("sensor.puissance_ecs", v, { device_class: "power", unit_of_measurement: "W", friendly_name: "Puissance ECS" });
+  const kwh = (id, v, unit = "kWh") => st(id, v, { device_class: "energy", unit_of_measurement: unit, friendly_name: id });
+  h.states = {
+    ...h.states,
+    "sensor.puissance_ecs": pw("1840"),
+    "sensor.consommation_ecs_reseau_journaliere": kwh("sensor.consommation_ecs_reseau_journaliere", "1.56"),
+    "sensor.consommation_ecs_solaire_journaliere": kwh("sensor.consommation_ecs_solaire_journaliere", "840", "Wh"),
+  };
+  const config = {
+    entity: "sensor.puissance_ecs",
+    entities: { energy_grid: "sensor.consommation_ecs_reseau_journaliere", energy_solar: "sensor.consommation_ecs_solaire_journaliere" },
+  };
+  const card = make("water-heater-card", config, h);
+  const m = card._items;
+  assert.equal(m.state, "heating", "heating from its own power");
+  assert.equal(m.watts, 1840);
+  assert.equal(m.relayId, null, "a sensor is no relay");
+  assert.equal(m.energy, 2.4);
+  assert.equal(Math.round(m.solarShare * 100), 35);
+  const html = card.shadowRoot.innerHTML;
+  assert.doesNotMatch(html, /act-relay|Heat now/);
+  assert.match(html, /1.8<small>kW/);
+  assert.match(html, /Today[\s\S]*2.4<small>kWh<\/small><\/span><span class="xs">· 35% solar/);
+  // Below the 50 W rule, the tank is ready; only one half of the split still gives a share.
+  h.states = { ...h.states, "sensor.puissance_ecs": pw("12") };
+  delete h.states["sensor.consommation_ecs_solaire_journaliere"];
+  const idle = make("water-heater-card", config, h);
+  assert.equal(idle._items.state, "ready");
+  assert.equal(idle._items.solarShare, 0);
+});
+
+test("discovery: the grid / solar split by name on the device", () => {
+  const h = makeHass();
+  const kwh = (id, name) => st(id, "1", { device_class: "energy", unit_of_measurement: "kWh", friendly_name: name });
+  h.states = { ...h.states, "sensor.ecs_grid": kwh("sensor.ecs_grid", "Water heater grid energy"), "sensor.ecs_pv": kwh("sensor.ecs_pv", "Water heater solar energy") };
+  h.entities = { ...h.entities, "sensor.ecs_grid": { device_id: "explorer" }, "sensor.ecs_pv": { device_id: "explorer" } };
+  const r = wh.whFind(h, "water_heater.explorer");
+  assert.equal(r.energy_solar, "sensor.ecs_pv");
+  assert.equal(r.energy_grid, "sensor.ecs_grid");
+});
+
 test("options: no illustration, no animation, no controls", () => {
   const card = make("water-heater-card", { ...HEATER, show_scene: false, show_controls: false });
   assert.doesNotMatch(card.shadowRoot.innerHTML, /class="scene"|class="ctl"/);

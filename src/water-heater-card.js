@@ -231,7 +231,9 @@ class WaterHeaterCard extends RcCard {
     const target = wh ? (num(a.temperature) ?? num(a.target_temp_high)) : null;
     const mode = wh ? (a.operation_mode ?? ent?.state) : null;
     const nmode = whNorm(mode);
-    const watts = whWatts(st("power"));
+    // A tank with no relay, driven by a PV router: a power sensor as `entity` is the power itself, read-only.
+    const entIsSensor = !wh && !!id?.startsWith("sensor.");
+    const watts = whWatts(st("power") || (entIsSensor ? ent : undefined));
     const heatSt = st("heating");
     const heating =
       heatSt && !rcUnavailable(heatSt) ? heatSt.state === "on" : watts != null ? watts > 50 : !wh ? ent?.state === "on" : temp != null && target != null && temp < target - 3;
@@ -263,6 +265,11 @@ class WaterHeaterCard extends RcCard {
     const end = endSt && !rcUnavailable(endSt) ? new Date(endSt.state) : null;
     const tariff = c.tariff ? h.states[c.tariff] : undefined;
     const energySt = st("energy");
+    // PV-routed tanks: today's energy split between the grid (off-peak forcing) and the solar surplus.
+    const eGrid = whKwh(st("energy_grid"));
+    const eSolar = whKwh(st("energy_solar"));
+    const eSplit = eGrid != null || eSolar != null;
+    const eTotal = eSplit ? (eGrid || 0) + (eSolar || 0) : null;
     const modes = (wh ? a.operation_list || [] : []).filter((x) => whNorm(x) !== "off" && !WH_AWAY.test(whNorm(x)));
     return {
       id,
@@ -283,8 +290,9 @@ class WaterHeaterCard extends RcCard {
       modeLabel: mode && nmode !== "off" ? this._modeLabel(ent, mode) : null,
       modes: modes.slice(0, 4).map((x) => ({ value: x, label: this._modeLabel(ent, x), icon: whModeIcon(x) })),
       watts,
-      energy: whKwh(energySt),
-      today: !!energySt && /today|daily|day|jour|heute|oggi|hoy/i.test(whLabel(h, energySt.entity_id)),
+      energy: eSplit ? eTotal : whKwh(energySt),
+      today: eSplit || (!!energySt && /today|daily|day|jour|heute|oggi|hoy/i.test(whLabel(h, energySt.entity_id))),
+      solarShare: eSplit && eTotal > 0 ? (eSolar || 0) / eTotal : null,
       inlet: whNum(st("inlet")) != null ? whNum(st("inlet")) : null,
       inletUnit: st("inlet")?.attributes.unit_of_measurement || "°C",
       ...hot,
@@ -294,7 +302,8 @@ class WaterHeaterCard extends RcCard {
       awayId: e.away && h.states[e.away] && !rcUnavailable(h.states[e.away]) ? e.away : null,
       boostId: e.boost && h.states[e.boost] && !rcUnavailable(h.states[e.boost]) ? e.boost : null,
       boostOn: boost,
-      relayOn: !wh && ent?.state === "on",
+      relayId: !wh && id && /^(switch|input_boolean)\./.test(id) ? id : null,
+      relayOn: !wh && /^(switch|input_boolean)\./.test(id || "") && ent?.state === "on",
       tariff: tariff && !rcUnavailable(tariff) ? h.formatEntityState?.(tariff) || tariff.state : null,
       error: errOn ? (errSt.entity_id.startsWith("binary_sensor.") ? this._t("st_error") : h.formatEntityState?.(errSt) || errSt.state) : null,
       heatPump: WH_HEAT_PUMP.test([...(a.operation_list || []), dev?.model, dev?.name, id].filter(Boolean).join(" ")),
@@ -345,7 +354,11 @@ class WaterHeaterCard extends RcCard {
   _tileList(m) {
     const all = {
       power: ["power", "t_power", m.watts != null && m.watts > 0 ? [this._fmt(m.watts / 1000, 1), "kW"] : null],
-      energy: ["energy", m.today ? "t_today" : "t_energy", m.energy != null ? [this._fmt(m.energy, m.energy >= 100 ? 0 : 1), "kWh"] : null],
+      energy: [
+        "energy",
+        m.today ? "t_today" : "t_energy",
+        m.energy != null ? [this._fmt(m.energy, m.energy >= 100 ? 0 : 1), "kWh", m.solarShare != null ? this._t("solar_share", { n: this._fmt(m.solarShare * 100, 0) }) : null] : null,
+      ],
       mode: ["mode", "t_mode", m.modeLabel ? [m.modeLabel, ""] : null],
       tariff: ["tariff", "t_tariff", m.tariff ? [m.tariff, ""] : null],
       water: ["water", "t_water", m.temp != null ? [this._fmt(m.temp, 0), m.unit] : null],
@@ -364,8 +377,8 @@ class WaterHeaterCard extends RcCard {
       .slice(0, 3);
   }
 
-  _tile([icon, label, [value, unit]]) {
-    return `<div class="xt"><span class="xh">${whIcon(WH_SVG[icon])}<span class="xl">${rcEsc(this._t(label))}</span></span><span class="xv">${rcEsc(value)}${unit ? `<small>${rcEsc(unit)}</small>` : ""}</span></div>`;
+  _tile([icon, label, [value, unit, sub]]) {
+    return `<div class="xt"><span class="xh">${whIcon(WH_SVG[icon])}<span class="xl">${rcEsc(this._t(label))}</span></span><span class="xv">${rcEsc(value)}${unit ? `<small>${rcEsc(unit)}</small>` : ""}</span>${sub ? `<span class="xs">${rcEsc(sub)}</span>` : ""}</div>`;
   }
 
   _animate() {
@@ -434,7 +447,7 @@ class WaterHeaterCard extends RcCard {
       m.awayAttr || m.awayId
         ? `<button class="gb act-away${m.awayOn ? " on" : ""}" data-k="away" aria-pressed="${m.awayOn}">${whIcon(WH_SVG.back)}<span>${rcEsc(this._t(m.awayOn ? "back" : "away"))}</span></button>`
         : "";
-    const relay = !m.wh && m.id ? `<button class="pb act-relay" data-k="relay">${whIcon(WH_SVG.relay)}<span>${rcEsc(this._t(m.relayOn ? "stop" : "heat_now"))}</span></button>` : "";
+    const relay = m.relayId ? `<button class="pb act-relay" data-k="relay">${whIcon(WH_SVG.relay)}<span>${rcEsc(this._t(m.relayOn ? "stop" : "heat_now"))}</span></button>` : "";
     const step =
       m.wh && m.target != null
         ? `<span class="seg" role="group" aria-label="${rcEsc(this._t("target", { t: this._deg(m.target) }))}"><button class="act-lower" data-k="lower" aria-label="${rcEsc(this._t("lower"))}"${m.target <= m.min ? " disabled" : ""}>−</button><b aria-live="polite">${rcEsc(this._deg(m.target))}</b><button class="act-raise" data-k="raise" aria-label="${rcEsc(this._t("raise"))}"${m.target >= m.max ? " disabled" : ""}>+</button></span>`
@@ -467,7 +480,7 @@ class WaterHeaterCard extends RcCard {
         ? rcCall(h, "water_heater", "set_away_mode", { entity_id: m.id, away_mode: !m.awayOn })
         : rcCall(h, "switch", m.awayOn ? "turn_off" : "turn_on", { entity_id: m.awayId }),
     );
-    on(".act-relay", () => rcCall(h, m.id.split(".")[0], m.relayOn ? "turn_off" : "turn_on", { entity_id: m.id }));
+    on(".act-relay", () => rcCall(h, m.relayId.split(".")[0], m.relayOn ? "turn_off" : "turn_on", { entity_id: m.relayId }));
     // Quick presses add up: each step starts from the target asked last (until the water heater reports it), shown at once.
     const setTarget = (delta) => {
       const asked = this._targetAsked && this._targetAsked.id === m.id && Date.now() - this._targetAsked.at < 5000 ? this._targetAsked.value : null;
@@ -507,6 +520,7 @@ class WaterHeaterCard extends RcCard {
     .xl { font-size: 12px; color: var(--secondary-text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .xv { font-size: 18px; font-weight: 500; line-height: 1.15; color: var(--primary-text-color); overflow-wrap: anywhere; }
     .xv small { font-size: 12px; font-weight: 400; color: var(--secondary-text-color); margin-left: 3px; }
+    .xs { font-size: 12px; color: var(--secondary-text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
     .pb, .gb, .seg button, .mseg button { all: unset; box-sizing: border-box; cursor: pointer; }
     .pb { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 16px; border-radius: 999px; font-size: 14px; font-weight: 500;
@@ -543,7 +557,7 @@ class WaterHeaterCard extends RcCard {
 
 // ── Editor ───────────────────────────────────────────────────────────────────
 const whSchema = (booleans) => (lang) => [
-  { name: "entity", selector: { entity: { domain: ["water_heater", "switch", "input_boolean"] } } },
+  { name: "entity", selector: { entity: { domain: ["water_heater", "switch", "input_boolean", "sensor"] } } },
   { name: "title", selector: { text: {} } },
   { name: "navigation_path", selector: { navigation: {} } },
   { name: "temperature", selector: { entity: { domain: "sensor", device_class: "temperature" } } },

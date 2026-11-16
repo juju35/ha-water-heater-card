@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.0 - 2026-11-16
+
+### Features
+- **PV-routed tanks** ([#6](https://github.com/juju35/ha-water-heater-card/issues/6)): a power sensor as `entity` (also in the visual editor) for a cumulus with no relay, driven by a PV router (Mk2PVRouter, MSunPV, F1ATB…) — read-only, no **Heat now** button, heating from its power (above 50 W).
+- **`energy_grid` / `energy_solar` roles**: today's energy split between the grid (off-peak forcing) and the solar surplus, shown in the energy tile as the total and the solar share (*Today 2.4 kWh · 35% solar*); found by name on the device, or set in `entities`.
+
+### Fixes
+- **Heat now** / **Stop** only for a `switch` or `input_boolean` relay: never a `turn_on` on a sensor set as `entity`.
+
 ## 1.0.0 - 2026-11-14
 
 ### Features
