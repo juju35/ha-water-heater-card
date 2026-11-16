@@ -266,7 +266,7 @@ test("a PV-routed tank: a power sensor as entity, read-only, today's energy spli
   const html = card.shadowRoot.innerHTML;
   assert.doesNotMatch(html, /act-relay|Heat now/);
   assert.match(html, /1.8<small>kW/);
-  assert.match(html, /Today[\s\S]*2.4<small>kWh<\/small><\/span><span class="xs">· 35% solar/);
+  assert.match(html, /Today[\s\S]*2.4<small>kWh<\/small><\/span><span class="xs"><svg[^>]*>[\s\S]*?<\/svg><span>35% solar/);
   // Below the 50 W rule, the tank is ready; only one half of the split still gives a share.
   h.states = { ...h.states, "sensor.puissance_ecs": pw("12") };
   delete h.states["sensor.consommation_ecs_solaire_journaliere"];

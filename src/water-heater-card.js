@@ -137,6 +137,7 @@ const whIcon = (d) =>
 const WH_SVG = {
   power: '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>',
   energy: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   mode: '<path d="M20 11a8 8 0 0 0-14.3-4.9M4 13a8 8 0 0 0 14.3 4.9"/><path d="M20 4v4h-4M4 20v-4h4"/>',
   tariff: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   water: '<path d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/><path d="M12 11v6"/>',
@@ -378,7 +379,7 @@ class WaterHeaterCard extends RcCard {
   }
 
   _tile([icon, label, [value, unit, sub]]) {
-    return `<div class="xt"><span class="xh">${whIcon(WH_SVG[icon])}<span class="xl">${rcEsc(this._t(label))}</span></span><span class="xv">${rcEsc(value)}${unit ? `<small>${rcEsc(unit)}</small>` : ""}</span>${sub ? `<span class="xs">${rcEsc(sub)}</span>` : ""}</div>`;
+    return `<div class="xt"><span class="xh">${whIcon(WH_SVG[icon])}<span class="xl">${rcEsc(this._t(label))}</span></span><span class="xv">${rcEsc(value)}${unit ? `<small>${rcEsc(unit)}</small>` : ""}</span>${sub ? `<span class="xs">${whIcon(WH_SVG.sun)}<span>${rcEsc(sub)}</span></span>` : ""}</div>`;
   }
 
   _animate() {
@@ -497,7 +498,7 @@ class WaterHeaterCard extends RcCard {
   }
 
   static styles = `
-    :host { --wh-heating: #e8590c; --wh-boost: #d6336c; }
+    :host { --wh-heating: #e8590c; --wh-boost: #d6336c; --wh-solar: #f59f00; }
     ha-card.lvl-heating { --c: var(--wh-heating); }
     ha-card.lvl-boost   { --c: var(--wh-boost); }
     ha-card.lvl-ready   { --c: var(--rc-ok); }
@@ -520,7 +521,11 @@ class WaterHeaterCard extends RcCard {
     .xl { font-size: 12px; color: var(--secondary-text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .xv { font-size: 18px; font-weight: 500; line-height: 1.15; color: var(--primary-text-color); overflow-wrap: anywhere; }
     .xv small { font-size: 12px; font-weight: 400; color: var(--secondary-text-color); margin-left: 3px; }
-    .xs { font-size: 12px; color: var(--secondary-text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* The solar share of today's energy: a sun and its share, in the solar colour (darkened to read on the tile). */
+    .xs { display: flex; align-items: center; gap: 4px; min-width: 0; font-size: 12px; font-weight: 500;
+          color: color-mix(in srgb, var(--wh-solar) 60%, var(--primary-text-color, #212121)); }
+    .xs svg { flex: none; width: 14px; height: 14px; color: var(--wh-solar); }
+    .xs span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
     .pb, .gb, .seg button, .mseg button { all: unset; box-sizing: border-box; cursor: pointer; }
     .pb { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 16px; border-radius: 999px; font-size: 14px; font-weight: 500;
