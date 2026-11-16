@@ -22,7 +22,7 @@ const WH_LOOP = 3.6;
 // The illustration: the wall and the floor, the tank on its feet with its two pipes, the heat pump on top (when it has
 // one), the water inside, hot above cold, the boundary at the share of hot water; bubbles rise and the element glows while
 // it heats. Beside it, a glass panel with the showers left, the litres at 40 °C and a note.
-const whScene = ({ state, dark, uid, share, temp, big, label, drops, litres, note, heatPump, animate }) => {
+const whScene = ({ state, dark, uid, share, temp, big, label, drops, litres, note, heatPump, solar, night, animate }) => {
   const acc = WH_ACCENTS[state];
   const heats = state === "heating" || state === "boost";
   const moving = animate && heats;
@@ -55,6 +55,36 @@ const whScene = ({ state, dark, uid, share, temp, big, label, drops, litres, not
         return `<rect x="${x + 4}" y="${y - 38}" width="${w - 8}" height="42" rx="14" fill="url(#b${uid})" stroke="${body[2]}"/>
       <rect x="${x + 12}" y="${y - 28}" width="${w - 24}" height="24" rx="9" fill="${dark ? "#14171b" : "#2c343f"}"/>${grille}
       <g>${blades}${turn}</g><circle cx="${cx}" cy="${fy}" r="2.2" fill="${acc}"/>`;
+      })()
+    : "";
+  // A PV-routed tank: its solar panel on a stand to the left, the cable to the element. While it heats by day, the sun
+  // turns and the current runs along the cable; by night the moon, and no current: the off-peak forcing is the grid's.
+  const pv = solar
+    ? (() => {
+        const flow = heats && !night;
+        const sunC = "#f59f00";
+        const frame = body[2];
+        const cy = y + h - 24;
+        const rays = [0, 1, 2, 3, 4, 5, 6, 7]
+          .map((k) => `<path d="M38 ${30 - 12}v-4" transform="rotate(${k * 45} 38 30)"/>`)
+          .join("");
+        // The rays repeat every 45°: a turn of 45° per loop is seamless.
+        const spin = moving && flow ? `<animateTransform attributeName="transform" type="rotate" from="0 38 30" to="45 38 30" dur="${WH_LOOP}s" repeatCount="indefinite"/>` : "";
+        const sky = night
+          ? `<circle cx="38" cy="30" r="9" fill="${dark ? "#8c96a3" : "#b9c1cb"}"/><circle cx="43" cy="26" r="8" fill="${W[0]}"/>`
+          : `<circle cx="38" cy="30" r="7.5" fill="${sunC}"${flow ? "" : ' opacity=".55"'}/><g stroke="${sunC}" stroke-width="2" stroke-linecap="round"${flow ? "" : ' opacity=".55"'}>${rays}${spin}</g>`;
+        // The cells: a dark blue sheet with a fine grid (4 × 6), the way a PV panel reads, not a window.
+        const grid = [1, 2, 3].map((k) => `M${15 + k * 11.5} 59v68`).concat([1, 2, 3, 4, 5].map((k) => `M15 ${59 + k * 11.33}h46`)).join("");
+        const cells = `<rect x="15" y="59" width="46" height="68" rx="1" fill="url(#pv${uid})"/><path d="${grid}" stroke="#fff" stroke-opacity="${dark ? 0.14 : 0.22}" stroke-width=".7"/>`;
+        const shine = `<path d="M15 59h26l-26 30z" fill="#fff" opacity="${dark ? 0.05 : 0.1}"/>`;
+        const run = moving && flow ? `<animate attributeName="stroke-dashoffset" from="8" to="0" dur="${WH_LOOP / 3}s" repeatCount="indefinite"/>` : "";
+        const cable = flow
+          ? `<path d="M64 100 H71 V${cy} H${x + 3}" fill="none" stroke="${sunC}" stroke-width="2.5" stroke-dasharray="4 4" stroke-linecap="round">${run}</path>`
+          : `<path d="M64 100 H71 V${cy} H${x + 3}" fill="none" stroke="${mut}" stroke-width="2" stroke-linecap="round" opacity=".45"/>`;
+        return `<g class="pv">${sky}
+      <path d="M26 130 L22 170 M50 130 L54 170" stroke="${frame}" stroke-width="3" stroke-linecap="round"/>
+      <g filter="url(#ds${uid})"><rect x="12" y="56" width="52" height="74" rx="3" fill="${body[1]}" stroke="${frame}"/>${cells}${shine}</g>
+      ${cable}<circle cx="${x + 3}" cy="${cy}" r="2.6" fill="${flow ? sunC : mut}"/></g>`;
       })()
     : "";
   // Still (no animation): the bubbles stay where they are at a fixed moment.
@@ -99,6 +129,7 @@ const whScene = ({ state, dark, uid, share, temp, big, label, drops, litres, not
       <linearGradient id="q${uid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${hot[0]}"/><stop offset="${Math.max(s - 0.07, 0).toFixed(2)}" stop-color="${hot[1]}"/><stop offset="${Math.min(s + 0.07, 1).toFixed(2)}" stop-color="${cold[0]}"/><stop offset="1" stop-color="${cold[1]}"/></linearGradient>
       <linearGradient id="hl${uid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity="${dark ? 0.3 : 0.55}"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
       <radialGradient id="sh${uid}"><stop offset="0" stop-color="#000" stop-opacity="${dark ? 0.55 : 0.28}"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+      <linearGradient id="pv${uid}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${dark ? "#2f4f80" : "#3a5f99"}"/><stop offset="1" stop-color="${dark ? "#14243f" : "#1c3560"}"/></linearGradient>
       <radialGradient id="halo${uid}"><stop offset="0" stop-color="${acc}" stop-opacity=".26"/><stop offset="1" stop-color="${acc}" stop-opacity="0"/></radialGradient>
       <clipPath id="c${uid}"><rect x="${ix}" y="${iy}" width="${iw}" height="${ih}" rx="${iw / 2}" ry="14"/></clipPath>
       <filter id="bl${uid}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.2"/></filter>
@@ -109,6 +140,7 @@ const whScene = ({ state, dark, uid, share, temp, big, label, drops, litres, not
     <rect y="170" width="430" height="1" fill="#fff" opacity="${dark ? 0.06 : 0.7}"/>
     ${heats ? `<circle cx="${cx}" cy="${y + h / 2}" r="78" fill="url(#halo${uid})"/>` : ""}
     <ellipse cx="${cx}" cy="172" rx="50" ry="5" fill="url(#sh${uid})"/>
+    ${pv}
     <path d="M${x + 26} ${y + h - 6} V172" stroke="#3b7fd4" stroke-width="5" stroke-linecap="round" opacity=".9"/>
     <path d="M${x + w - 26} ${y + h - 6} V172" stroke="#e8590c" stroke-width="5" stroke-linecap="round" opacity=".9"/>
     <g filter="url(#ds${uid})">${fan}
@@ -294,6 +326,9 @@ class WaterHeaterCard extends RcCard {
       energy: eSplit ? eTotal : whKwh(energySt),
       today: eSplit || (!!energySt && /today|daily|day|jour|heute|oggi|hoy/i.test(whLabel(h, energySt.entity_id))),
       solarShare: eSplit && eTotal > 0 ? (eSolar || 0) / eTotal : null,
+      // A PV-routed tank (a power sensor as its entity, or a solar energy): drawn with its panel; by night, the moon.
+      solar: entIsSensor || !!e.energy_solar,
+      night: h.states["sun.sun"]?.state === "below_horizon",
       inlet: whNum(st("inlet")) != null ? whNum(st("inlet")) : null,
       inletUnit: st("inlet")?.attributes.unit_of_measurement || "°C",
       ...hot,
@@ -407,6 +442,8 @@ class WaterHeaterCard extends RcCard {
       litres: m.litres != null ? this._t("litres", { n: this._fmt(m.litres, 0) }) : "",
       note: this._note(m),
       heatPump: m.heatPump,
+      solar: m.solar,
+      night: m.night,
     };
     // Redrawn only when something shown changes: a reading moving by 0.001, the same on screen, must not rebuild the
     // card (and restart the bubbles and the fan).

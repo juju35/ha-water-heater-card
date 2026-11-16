@@ -51,6 +51,7 @@ The cards share the look of the other ha-* cards (header with a status pill, tin
 - **Illustration**: the tank on its feet with its cold and hot pipes, on a wall and a floor that follow the light or dark theme; the water inside, hot above cold, the boundary at the share of hot water (marked in %), the water's temperature on the tank. A heat pump water heater gets its heat pump on top. Beside it, a glass panel: the **showers left** (as drops), the **litres at 40 °C** and where the water heater is going (*Heating to 55 °C*, *Away until Sat, Nov 21*, the error)
 - **Hot water**: the integration's own figures when it reports them (a volume at 40 °C, a share in %, a number of showers), else an estimate from the water's temperature, the tank's `capacity` and the cold water's temperature (its sensor, else 15 °C), counted in showers of `shower_volume` litres
 - **States**: **heating** (orange: bubbles rise, the element glows, the heat pump's fan turns), **ready** (green), **boost** (pink: a boost mode or switch; *high_demand* is a lasting mode, shown as heating or ready), **away** (grey, until its end date when the integration gives one), **off**, **error** (red, the integration's fault in the panel), *offline* when the water heater cannot report. Heating comes from the water heater's heating sensor, else its power (above 50 W), else a water more than 3 °C below the target
+- **Solar panel**: a PV-routed cumulus (a power sensor as `entity`, or an `energy_solar` role) is drawn with its panel; by day the sun turns and the current runs to the element while it heats, by night the moon (from `sun.sun`)
 - **Header**: the water heater's name, its room and model, and a pill with the state and the temperature (*Heating · 54 °C*)
 - **Three tiles**, the ones that matter in each state among what the water heater reports: power, energy (today's when the sensor is a daily one; with a grid / solar split, the total and the solar share — *Today 2.4 kWh · 35% solar*), mode, `tariff` (off-peak / peak), the cold water's temperature, the end of an absence
 - **Controls**: the water heater's **modes** (its own list, *off* and *away* aside, up to four), **Boost** when it is a switch rather than a mode, **Away** / **Back home** (the away mode, or an away switch), the **target** in steps of the water heater (− 55 °C +, within its range); **Heat now** / **Stop** for a cumulus on a relay (none for a PV-routed tank: the router decides)
@@ -170,16 +171,22 @@ entities:
 | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-away.png" alt="Away" width="400"> | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-error.png" alt="Error" width="400"> | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-relay.png" alt="Cumulus on a relay" width="400"> |
 | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-away-dark.png" alt="Away, dark" width="400"> | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-error-dark.png" alt="Error, dark" width="400"> | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-relay-dark.png" alt="Cumulus on a relay, dark" width="400"> |
 
-| PV-routed cumulus (grid / solar split) | Without the illustration (`show_scene: false`) |
-|---|---|
-| <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-pv.png" alt="PV-routed cumulus" width="400"> | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-compact.png" alt="Without the illustration" width="400"> |
-| <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-pv-dark.png" alt="PV-routed cumulus, dark" width="400"> | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-compact-dark.png" alt="Without the illustration, dark" width="400"> |
+| PV-routed cumulus, by day (grid / solar split) | By night (off-peak forcing) | Without the illustration (`show_scene: false`) |
+|---|---|---|
+| <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-pv.png" alt="PV-routed cumulus" width="400"> | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-pv-night.png" alt="PV-routed cumulus by night" width="400"> | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-compact.png" alt="Without the illustration" width="400"> |
+| <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-pv-dark.png" alt="PV-routed cumulus, dark" width="400"> | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-pv-night-dark.png" alt="PV-routed cumulus by night, dark" width="400"> | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-compact-dark.png" alt="Without the illustration, dark" width="400"> |
 
 **Heating animation**: bubbles rise from the element, which glows, and the heat pump's fan turns (still with `animations: false`, or when the system asks for reduced motion).
 
 | Light | Dark |
 |---|---|
 | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-heating.gif" alt="Heating animation" width="400"> | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-heating-dark.gif" alt="Heating animation, dark" width="400"> |
+
+**Solar heating animation**: a PV-routed cumulus has its panel beside the tank; while it heats by day, the sun turns and the current runs along the cable to the element. By night (`sun.sun` below the horizon) the moon replaces the sun and the cable stays still: the off-peak forcing comes from the grid.
+
+| Light | Dark |
+|---|---|
+| <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-pv-heating.gif" alt="Solar heating animation" width="400"> | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-pv-heating-dark.gif" alt="Solar heating animation, dark" width="400"> |
 
 ### Water heater mini
 

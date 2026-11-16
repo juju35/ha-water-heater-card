@@ -75,12 +75,16 @@ const recordCycle = async (page, dir, seconds) => {
 const browser = await launch();
 
 // Heating, in both themes: <name>.gif light, <name>-dark.gif dark. The heat pump's fan turns, bubbles rise and the element
-// glows (SVG animations, one loop of 3.6 s, stepped with the page's SVG clock).
+// glows; a PV-routed tank's sun turns and the current runs along its cable (SVG animations, one loop of 3.6 s, stepped
+// with the page's SVG clock).
 for (const theme of ["light", "dark"]) {
   const dark = theme === "dark";
   const suffix = dark ? "-dark" : "";
-  for (const [tag, name] of [["water-heater-card", "wh-heating"]]) {
-    const { hass, config } = setup({ scene: "heating", theme });
+  for (const [tag, name, scene] of [
+    ["water-heater-card", "wh-heating", "heating"],
+    ["water-heater-card", "wh-pv-heating", "pv"],
+  ]) {
+    const { hass, config } = setup({ scene, theme });
     const page = await openPage(browser, { theme, width: WIDTH, icons: iconsFor([]), label: `${name}${suffix}` });
     await mountCard(page, { tag, hass, config, dark });
     await page.waitForTimeout(300);

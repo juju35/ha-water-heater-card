@@ -6,7 +6,7 @@ import { setup } from "./mock.mjs";
 // Stills: animations: false draws the bubbles at a fixed moment, so a capture only changes when the card does.
 const still = (file, s) => pair(file, { ...s, config: { animations: false, ...s.config } });
 const scenes = ["heating", "ready", "boost", "away", "error", "relay", "pv"].flatMap((scene) => still(scene, { scene }));
-await shoot({ prefix: "wh", tag: "water-heater-card", shots: [...scenes, ...still("compact", { scene: "heating", config: { show_scene: false } })], setup });
+await shoot({ prefix: "wh", tag: "water-heater-card", shots: [...scenes, ...still("pv-night", { scene: "pv", night: true }), still("compact", { scene: "heating", config: { show_scene: false } })], setup });
 await shoot({
   prefix: "wh-mini",
   tag: "water-heater-mini-card",

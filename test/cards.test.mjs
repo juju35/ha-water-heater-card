@@ -267,6 +267,17 @@ test("a PV-routed tank: a power sensor as entity, read-only, today's energy spli
   assert.doesNotMatch(html, /act-relay|Heat now/);
   assert.match(html, /1.8<small>kW/);
   assert.match(html, /Today[\s\S]*2.4<small>kWh<\/small><\/span><span class="xs"><svg[^>]*>[\s\S]*?<\/svg><span>35% solar/);
+  // Its solar panel in the illustration: by day, the sun turns and the current runs along the cable while it heats.
+  assert.equal(m.solar, true);
+  assert.match(html, /<g class="pv">[\s\S]*stroke-dasharray="4 4"[\s\S]*stroke-dashoffset/);
+  assert.match(html, /<g class="pv">[\s\S]*type="rotate" from="0 38 30"/);
+  // By night the moon, and no current: the off-peak forcing comes from the grid.
+  const night = make("water-heater-card", config, { ...h, states: { ...h.states, "sun.sun": st("sun.sun", "below_horizon") } });
+  assert.equal(night._items.night, true);
+  assert.doesNotMatch(night.shadowRoot.innerHTML, /stroke-dashoffset|from="0 38 30"/);
+  assert.match(night.shadowRoot.innerHTML, /<g class="pv"><circle cx="38" cy="30" r="9"/);
+  // No panel for a water heater that is not PV-routed.
+  assert.doesNotMatch(make("water-heater-card", HEATER).shadowRoot.innerHTML, /class="pv"/);
   // Below the 50 W rule, the tank is ready; only one half of the split still gives a share.
   h.states = { ...h.states, "sensor.puissance_ecs": pw("12") };
   delete h.states["sensor.consommation_ecs_solaire_journaliere"];
