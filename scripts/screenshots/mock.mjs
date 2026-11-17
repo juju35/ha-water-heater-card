@@ -4,7 +4,8 @@ const st = (entity_id, state, attributes = {}) => ({ entity_id, state, attribute
 
 // `scene`: heating, ready, boost, away (until a date), error, relay (a cumulus on a plug, heating at off-peak), pv (a
 // cumulus driven by a PV router: its meter's power as the entity, today's energy split grid / solar; `night`: forced at
-// off-peak by the grid, under the moon).
+// off-peak by the grid, under the moon). The `pv` dark twin keeps `illustration_theme: auto`: as in Home Assistant, the
+// dark theme darkens the room, while the panel's sun and the running current (the real sun) still show solar heating.
 const SCENES = {
   heating: { mode: "auto", temp: 54, target: 55, power: "620", today: "2.1", litres: "186", away: "off", error: "No error" },
   ready: { mode: "eco", temp: 55, target: 55, power: "0", today: "3.4", litres: "240", away: "off", error: "No error" },

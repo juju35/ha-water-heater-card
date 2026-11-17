@@ -394,12 +394,13 @@ class WaterHeaterCard extends RcCard {
     return !!this._hass.themes?.darkMode;
   }
 
-  // The banner's night: forced by `illustration_theme`, else the sun below the horizon, else Home Assistant's dark mode.
+  // The banner's night: forced by `illustration_theme`, else the sun below the horizon or Home Assistant's dark theme
+  // (an unknown or unavailable sun leaves the theme alone to decide). The PV panel's sun or moon (`m.night`) keeps
+  // following the real sun: it shows whether the panel produces, not the picture's look.
   _night() {
     const theme = this._config.illustration_theme;
     if (theme === "night" || theme === "day") return theme === "night";
-    const sun = this._hass.states["sun.sun"];
-    return sun && !rcUnavailable(sun) ? sun.state === "below_horizon" : this._dark();
+    return this._hass.states["sun.sun"]?.state === "below_horizon" || this._dark();
   }
 
   // The illustrated header: the badge (the state's icon, in the state's colour), the title and `sub` on the room's wall

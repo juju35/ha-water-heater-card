@@ -329,14 +329,17 @@ test("mini card: the readings as pills, a ring badge", () => {
   assert.match(make("water-heater-mini-card", { ...HEATER, illustration: false }).shadowRoot.innerHTML, /class="mini"/);
 });
 
-test("banner: night by illustration_theme, the sun, then the dark theme; unique ids; classic header on demand", () => {
+test("banner: night by illustration_theme, else the sun below the horizon or the dark theme; unique ids; classic header on demand", () => {
   const h = makeHass();
   const html = (config, hass = h) => make("water-heater-card", { ...HEATER, ...config }, hass).shadowRoot.innerHTML;
   assert.match(html({}), /class="banner"/, "no sun, light theme: day");
   assert.match(html({ illustration_theme: "night" }), /class="banner night"/);
   assert.match(html({}, { ...h, themes: { darkMode: true } }), /class="banner night"/, "no sun: the dark theme");
   const sunUp = { ...h, themes: { darkMode: true }, states: { ...h.states, "sun.sun": st("sun.sun", "above_horizon") } };
-  assert.match(html({}, sunUp), /class="banner"/, "the sun wins over the dark theme");
+  assert.match(html({}, sunUp), /class="banner night"/, "the dark theme gives the night even while the sun is up");
+  assert.match(html({}, { ...sunUp, themes: { darkMode: false } }), /class="banner"/, "a light theme with the sun up: day");
+  assert.match(html({ illustration_theme: "day" }, sunUp), /class="banner"/, "forced day wins over the dark theme");
+  assert.match(html({ illustration_theme: "night" }, { ...sunUp, themes: { darkMode: false } }), /class="banner night"/);
   assert.match(html({ illustration_theme: "day" }, { ...h, states: { ...h.states, "sun.sun": st("sun.sun", "below_horizon") } }), /class="banner"/);
   // Two cards, two sets of SVG ids.
   const ids = (s) => s.match(/id="q([a-z0-9]+)"/)[1];
