@@ -774,7 +774,7 @@ class WaterHeaterCard extends RcCard {
     .banner.night .badge { background: rgba(255,255,255,.12); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); }
     .banner .title { color: var(--bt); }
     .banner .subt { color: var(--bs); font-size: 13px; }
-    .banner .room { position: absolute; right: 0; bottom: 10px; width: var(--sw); height: 80px; }
+    .banner .room { position: absolute; right: 0; bottom: 10px; width: var(--sw); height: calc(80px * var(--sk, 1)); }
     .banner .pl { stroke-dasharray: 4 26; animation: wh-pl 1.4s linear infinite; }
     @keyframes wh-pl { to { stroke-dashoffset: -30; } }
     .banner .ground { position: absolute; left: 0; right: 0; bottom: 0; height: 10px; background: #9aa1a9; box-shadow: inset 0 2px 0 #b5bbc2; }
@@ -813,8 +813,6 @@ class WaterHeaterCard extends RcCard {
     [data-dot] .bpt, [data-dot] .trow > .pill .pt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
     [data-dot] .trow > .pill { padding: 0; width: 18px; height: 18px; justify-content: center; background: none; }
     [data-dot] .trow > .pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
-    /* Narrow card: the scene gives up some width so that the title keeps about four characters. */
-    @container (max-width: 280px) { .banner, ha-card.bn > .banner { --sw: 40%; } }
     @container (max-width: 200px) {
       .bpill { padding: 0; background: none; }
       .bpt, .trow > .pill .pt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
@@ -824,6 +822,13 @@ class WaterHeaterCard extends RcCard {
     /* The mini card: the banner alone, its readings as chips on the wall. */
     ha-card.bn { padding: 0; }
     ha-card.bn > .banner { margin: 0; --sw: min(200px, 46%); }
+    /* Narrower cards: the utility corner is drawn smaller (75 %, 62 %, then 50 % of its height, its left part cropped),
+       so that the text keeps room for the whole title and the pill's label; the tank stays whole, day and night. */
+    @container (max-width: 420px) { .banner, ha-card.bn > .banner { --sw: 150px; --sk: .75; } }
+    /* At 75 % the cold water pipe climbs close to the expand button: the corner steps a little further aside. */
+    @container (min-width: 341px) and (max-width: 420px) { .banner:has(.zoom) .room { right: 12px; } }
+    @container (max-width: 340px) { .banner, ha-card.bn > .banner { --sw: 112px; --sk: .62; } }
+    @container (max-width: 260px) { .banner, ha-card.bn > .banner { --sw: 70px; --sk: .5; } }
     /* The chips that do not fit wrap to a second line, hidden: never a chip cut to "R…". */
     .banner .rs { display: flex; flex-wrap: wrap; gap: 4px; height: 20px; margin: 3px 0 0 -2px; min-width: 0; overflow: hidden; }
     .banner .r { flex: none; line-height: 20px; padding: 0 7px; color: var(--bt); background: rgba(255,255,255,.62); }
