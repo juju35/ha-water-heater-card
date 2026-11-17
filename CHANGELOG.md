@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0 - 2026-11-17
+
+### Features
+- **Illustrated header** on the full and the mini card: a 90 px banner with the tank drawn big in a utility corner (tiled wall, hot and cold water pipes, a shelf, the washing machine, the floor drain) and a 10 px concrete floor strip edge to edge; the name and the state on the wall at the left, beside a round badge whose icon takes the state's colour (heating, ready, boost, grey when away or off, red on error). The tank keeps its states and animations (bubbles, glowing element, turning fan, pale when away or off); the hot pipe pulses while it heats.
+- **Night mode**: the room turns dark with the sun below the horizon (else with the dark theme); `illustration_theme: day | night` forces it. `illustration: false` keeps the classic header and the big illustration. Both options are in the visual editor.
+- Under the banner, the full card shows the panel's readings (showers left, litres at 40 °C, the note) rather than a second tank; the mini card shows its readings as chips on the banner, with the hot-water ring around the badge.
+
 ## 1.1.0 - 2026-11-16
 
 ### Features

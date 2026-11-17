@@ -71,11 +71,17 @@ test("full card: header, illustration, tiles and controls while heating", () => 
   assert.equal(m.litres, 185);
   assert.equal(m.heatPump, true, "Explorer: a heat pump");
   const html = card.shadowRoot.innerHTML;
-  assert.match(html, /Heating · 54 °C/);
-  assert.match(html, /Utility room · Explorer v4/);
-  assert.match(html, /class="scene"/);
+  // The illustrated header: the state as the subtitle, the area and model as the title's tooltip, the bare tank in the
+  // utility room (no second tank below), the panel's readings under it.
+  assert.match(html, /class="banner"/);
+  assert.match(html, /<div class="subt">Heating · 54 °C<\/div>/);
+  assert.match(html, /title="Utility room · Explorer v4"/);
+  assert.match(html, /ha-icon icon="mdi:water-boiler"/);
+  assert.match(html, /<svg class="tank"/);
+  assert.doesNotMatch(html, /class="scene"/);
+  assert.match(html, /class="pl"/, "the hot pipe pulses while it heats");
   assert.match(html, /animateTransform/, "the fan turns");
-  assert.match(html, /≈ 3<tspan[^>]*>showers/);
+  assert.match(html, /<b>≈ 3<\/b><span>showers/);
   assert.match(html, /185 L at 40 °C/);
   assert.match(html, /Heating to 55 °C/);
   assert.match(html, /Power[\s\S]*0.6<small>kW[\s\S]*Today[\s\S]*2.1<small>kWh[\s\S]*Mode[\s\S]*Auto/);
@@ -210,9 +216,12 @@ test("no water heater: a message; no reading: a grey tank; a long error is cut i
   const grey = make("water-heater-card", HEATER, bare);
   assert.equal(grey._items.share, null);
   assert.match(grey.shadowRoot.innerHTML, /stop-color="#e3e7ec"/);
-  const long = make("water-heater-card", HEATER, makeHass({ error: "E21 · Upper temperature probe fault, call the installer" }));
+  const error = makeHass({ error: "E21 · Upper temperature probe fault, call the installer" });
+  const long = make("water-heater-card", { ...HEATER, illustration: false }, error);
   assert.match(long.shadowRoot.innerHTML, /<text[^>]*>E21 · Upper temperature pro…<\/text>/);
   assert.match(long.shadowRoot.innerHTML, /class="sl">[^<]*call the installer/);
+  // Under the banner, the note is HTML: whole, wrapped by CSS.
+  assert.match(make("water-heater-card", HEATER, error).shadowRoot.innerHTML, /class="nt">E21 · Upper temperature probe fault, call the installer</);
 });
 
 test("away: the pill says Away, the date is in the panel and the tile", () => {
@@ -274,7 +283,7 @@ test("a PV-routed tank: a power sensor as entity, read-only, today's energy spli
   // By night the moon, and no current: the off-peak forcing comes from the grid.
   const night = make("water-heater-card", config, { ...h, states: { ...h.states, "sun.sun": st("sun.sun", "below_horizon") } });
   assert.equal(night._items.night, true);
-  assert.doesNotMatch(night.shadowRoot.innerHTML, /stroke-dashoffset|from="0 38 30"/);
+  assert.doesNotMatch(night.shadowRoot.innerHTML.replace(/<style>[\s\S]*?<\/style>/, ""), /stroke-dashoffset|from="0 38 30"/);
   assert.match(night.shadowRoot.innerHTML, /<g class="pv"><circle cx="38" cy="30" r="9"/);
   // No panel for a water heater that is not PV-routed.
   assert.doesNotMatch(make("water-heater-card", HEATER).shadowRoot.innerHTML, /class="pv"/);
@@ -309,6 +318,37 @@ test("mini card: the readings as pills, a ring badge", () => {
   assert.match(html, /54 °C/);
   assert.match(html, /≈ 3 showers/);
   assert.equal(mini._config.zoom, true);
+  // The same 90 px banner: the ring around the state's icon, the readings as chips, the tank at the right.
+  assert.match(html, /<ha-card class="lvl-heating bn">[\s\S]*class="banner"/);
+  assert.match(html, /class="ringb"[\s\S]*ha-icon icon="mdi:water-boiler"/);
+  assert.match(html, /<div class="rs">[\s\S]*class="r pill"/);
+  assert.match(html, /<svg class="tank"/);
+  // illustration: false keeps the two-line mini card.
+  assert.match(make("water-heater-mini-card", { ...HEATER, illustration: false }).shadowRoot.innerHTML, /class="mini"/);
+});
+
+test("banner: night by illustration_theme, the sun, then the dark theme; unique ids; classic header on demand", () => {
+  const h = makeHass();
+  const html = (config, hass = h) => make("water-heater-card", { ...HEATER, ...config }, hass).shadowRoot.innerHTML;
+  assert.match(html({}), /class="banner"/, "no sun, light theme: day");
+  assert.match(html({ illustration_theme: "night" }), /class="banner night"/);
+  assert.match(html({}, { ...h, themes: { darkMode: true } }), /class="banner night"/, "no sun: the dark theme");
+  const sunUp = { ...h, themes: { darkMode: true }, states: { ...h.states, "sun.sun": st("sun.sun", "above_horizon") } };
+  assert.match(html({}, sunUp), /class="banner"/, "the sun wins over the dark theme");
+  assert.match(html({ illustration_theme: "day" }, { ...h, states: { ...h.states, "sun.sun": st("sun.sun", "below_horizon") } }), /class="banner"/);
+  // Two cards, two sets of SVG ids.
+  const ids = (s) => s.match(/id="q([a-z0-9]+)"/)[1];
+  assert.notEqual(ids(html({})), ids(html({})));
+  // illustration: false: the classic header and the big illustration.
+  const classic = html({ illustration: false });
+  assert.doesNotMatch(classic, /class="banner/);
+  assert.match(classic, /class="scene"/);
+  assert.match(classic, /≈ 3<tspan[^>]*>showers/);
+  // Away: the grey icon; no pulsing pipe while not heating.
+  const away = html({}, makeHass({ away: "on", power: "0" }));
+  assert.match(away, /ha-icon icon="mdi:bag-suitcase-outline"/);
+  assert.doesNotMatch(away, /class="pl"/);
+  assert.doesNotMatch(html({ animations: false }), /class="pl"/);
 });
 
 test("editors: defaults stay out of the YAML, every field has a label", () => {
