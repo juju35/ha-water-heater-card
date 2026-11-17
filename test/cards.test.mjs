@@ -74,7 +74,9 @@ test("full card: header, illustration, tiles and controls while heating", () => 
   // The illustrated header: the state as the subtitle, the area and model as the title's tooltip, the bare tank in the
   // utility room (no second tank below), the panel's readings under it.
   assert.match(html, /class="banner"/);
-  assert.match(html, /<div class="subt">Heating · 54 °C<\/div>/);
+  // The state is the status pill right after the title, the temperature under it.
+  assert.match(html, /<div class="trow"><div class="title">[^<]*<\/div><span class="bpill" title="[^"]*"><span class="bdot"><\/span><span class="bpt">Heating<\/span>/);
+  assert.match(html, /<div class="subt">54 °C<\/div>/);
   assert.match(html, /title="Utility room · Explorer v4"/);
   assert.match(html, /ha-icon icon="mdi:water-boiler"/);
   assert.match(html, /<svg class="tank"/);
@@ -321,7 +323,7 @@ test("mini card: the readings as pills, a ring badge", () => {
   // The same 90 px banner: the ring around the state's icon, the readings as chips, the tank at the right.
   assert.match(html, /<ha-card class="lvl-heating bn">[\s\S]*class="banner"/);
   assert.match(html, /class="ringb"[\s\S]*ha-icon icon="mdi:water-boiler"/);
-  assert.match(html, /<div class="rs">[\s\S]*class="r pill"/);
+  assert.match(html, /<span class="bpt">Heating<\/span>[\s\S]*<div class="rs">[\s\S]*class="r pill dim"/, "the state in the pill, the readings as chips");
   assert.match(html, /<svg class="tank"/);
   // illustration: false keeps the two-line mini card.
   assert.match(make("water-heater-mini-card", { ...HEATER, illustration: false }).shadowRoot.innerHTML, /class="mini"/);

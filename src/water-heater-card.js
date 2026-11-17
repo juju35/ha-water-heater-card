@@ -185,7 +185,7 @@ const whClip = (t, max) => (t && t.length > max ? `${t.slice(0, max - 1).trimEnd
 // and cold water pipes coming down from the ceiling (the hot one pulses while the tank heats), a shelf of bottles, the
 // washing machine and the floor drain; the tank (whScene's, bare) stands on the floor at `cx`. By night, darker.
 const WH_ROOM_CX = 140;
-const whRoom = (night, flowing, shelf = true) => {
+const whRoom = (night, flowing, shelf = true, dx = 0) => {
   const [wall, band, joint] = night ? ["#25282c", "#2c3034", "#33373c"] : ["#ece8e1", "#f4f1ec", "#ddd6cb"];
   const rows = [0, 1, 2, 3, 4].map((i) => `<line x1="0" y1="${40 + i * 9}" x2="200" y2="${40 + i * 9}"/>`).join("");
   const cols = Array.from({ length: 12 }, (_, i) => `<line x1="${(i % 2 ? 9 : 0) + i * 18}" y1="40" x2="${(i % 2 ? 9 : 0) + i * 18}" y2="80"/>`).join("");
@@ -200,9 +200,9 @@ const whRoom = (night, flowing, shelf = true) => {
   const hot = "M150 0 V20 Q150 24 154 24 H160";
   return `<rect width="200" height="80" fill="${wall}"/><rect width="200" height="40" fill="${band}"/>
     <g stroke="${joint}" stroke-width=".8">${rows}${cols}</g>
-    <path d="${hot}" stroke="#d1603a" stroke-width="3" fill="none"/><path d="M190 0 V20 Q190 24 186 24 H180" stroke="#3b7fd4" stroke-width="3" fill="none"/>
+    <g${dx ? ` transform="translate(${-dx} 0)"` : ""}><path d="${hot}" stroke="#d1603a" stroke-width="3" fill="none"/><path d="M190 0 V20 Q190 24 186 24 H180" stroke="#3b7fd4" stroke-width="3" fill="none"/>
     ${flowing ? `<path class="pl" d="${hot}" stroke="#ffb08a" stroke-width="1.2" fill="none"/>` : ""}
-    <rect x="146" y="6" width="8" height="5" rx="1" fill="#e5484d"/><rect x="186" y="6" width="8" height="5" rx="1" fill="#2f80ed"/>
+    <rect x="146" y="6" width="8" height="5" rx="1" fill="#e5484d"/><rect x="186" y="6" width="8" height="5" rx="1" fill="#2f80ed"/></g>
     ${shelf ? `<g transform="translate(70 30)"><rect width="50" height="2.4" fill="${night ? "#4a4f56" : "#b9a68a"}"/>${bottles}</g>` : ""}
     <g class="wm" transform="translate(40 76)"><rect x="-14" y="-24" width="28" height="24" rx="2" fill="${night ? "#3d4248" : "#fff"}" stroke="${night ? "#555b63" : "#c9ced6"}"/><circle cy="-11" r="7" fill="${night ? "#2c3034" : "#e8eef3"}" stroke="#9aa3ae"/><rect x="-11" y="-22" width="8" height="2" rx="1" fill="#9aa3ae"/></g>
     <circle cx="110" cy="77" r="2.2" fill="${night ? "#1c1f22" : "#b4aea4"}"/>`;
@@ -405,20 +405,62 @@ class WaterHeaterCard extends RcCard {
   // The illustrated header: the badge (the state's icon, in the state's colour), the title and `sub` on the room's wall
   // at the left, the tank in its utility corner at the right, a 10 px concrete floor strip edge to edge. `ring`: the
   // mini card's share of hot water around the badge.
-  _banner(m, sub, night, scene, ring = "", cx = WH_ROOM_CX) {
+  _banner(m, sub, night, scene, ring = "", cx = WH_ROOM_CX, pill = "") {
     const c = this._config;
     const nav = c.navigation_path;
     const moving = scene && this._animate() && (m.state === "heating" || m.state === "boost");
-    const tank = scene ? whScene({ ...scene, share: m.share, dark: night, uid: this._id(), animate: this._animate(), bare: { cx } }) : "";
+    // The mini card's expand / collapse button sits at the banner's top right corner: the tank and its pipes step
+    // aside, clear of it.
+    const dx = this._addZoom && c.zoom ? 24 : 0;
+    const tank = scene ? whScene({ ...scene, share: m.share, dark: night, uid: this._id(), animate: this._animate(), bare: { cx: cx - dx } }) : "";
+    // The status pill right after the title (on its own line under the subtitle when it does not fit there).
+    const chip = pill ? `<span class="bpill" title="${rcEsc(m.raw || pill)}"><span class="bdot"></span><span class="bpt">${rcEsc(pill)}</span></span>` : "";
     return `
       <div class="banner${night ? " night" : ""}">
         <div class="head${nav ? " nav" : ""}"${nav ? ' role="link" tabindex="0"' : ""}${m.sub ? ` title="${rcEsc(m.sub)}"` : ""}>
           <div class="badge">${ring}<ha-icon icon="${m.none ? "mdi:water-boiler" : WH_ICONS[m.state]}"></ha-icon></div>
-          <div class="tt"><div class="title">${rcEsc(m.name)}</div>${sub}</div>
+          <div class="tt"><div class="trow"><div class="title">${rcEsc(m.name)}</div>${chip}</div>${sub}</div>
         </div>
-        <svg class="room" viewBox="0 0 200 80" preserveAspectRatio="xMaxYMax slice">${whRoom(night, moving, !m.solar)}${tank}</svg>
+        <svg class="room" viewBox="0 0 200 80" preserveAspectRatio="xMaxYMax slice">${whRoom(night, moving, !m.solar, dx)}${tank}</svg>
         <div class="ground"></div>
       </div>`;
+  }
+
+  // The banner's status pill goes on its own line under the subtitle when it is cut next to the title. Fractional
+  // widths: scrollWidth / clientWidth are rounded and miss a label cut by less than a pixel.
+  _fitPill() {
+    const pill = this.shadowRoot?.querySelector?.(".trow .bpill");
+    const banner = pill?.closest?.(".banner");
+    if (!banner || !pill.getBoundingClientRect) return;
+    banner.removeAttribute("data-wrap");
+    const have = pill.getBoundingClientRect().width;
+    pill.style.maxWidth = "none";
+    pill.style.flex = "none";
+    const need = pill.getBoundingClientRect().width;
+    pill.style.maxWidth = "";
+    pill.style.flex = "";
+    if (need > have + 0.01) banner.setAttribute("data-wrap", "");
+  }
+
+  connectedCallback() {
+    super.connectedCallback?.();
+    // A new width: the status pill is fitted again (in the next frame, and only for a new width).
+    if (typeof ResizeObserver !== "function") return;
+    this._resize ??= new ResizeObserver((entries) => {
+      const w = Math.round(entries.at(-1).contentRect.width);
+      if (w === this._fitWidth) return;
+      this._fitWidth = w;
+      cancelAnimationFrame(this._fitFrame);
+      this._fitFrame = requestAnimationFrame(() => this._fitPill());
+    });
+    this._resize.observe(this);
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback?.();
+    this._resize?.disconnect();
+    this._fitWidth = undefined;
+    if (this._fitFrame) cancelAnimationFrame(this._fitFrame);
   }
 
   // Unique per card: the SVG ids of several cards on one page never clash.
@@ -541,7 +583,15 @@ class WaterHeaterCard extends RcCard {
     const parts = [m.none, m.raw, m.name, m.sub, status, scene, tiles, m.error, m.mode, m.modes, m.target, m.min, m.max, m.boostOn, m.relayOn, m.awayOn, m.awayAttr, m.awayId, m.boostId, dark, banner, night];
     if (!this._changed(parts)) return;
     const head = banner
-      ? this._banner(m, m.none ? "" : `<div class="subt">${rcEsc(status)}</div>`, night, m.none ? null : scene)
+      ? this._banner(
+          m,
+          !m.none && ["heating", "ready", "boost"].includes(m.state) && m.temp != null ? `<div class="subt">${rcEsc(this._deg(m.temp))}</div>` : "",
+          night,
+          m.none ? null : scene,
+          "",
+          WH_ROOM_CX,
+          m.none ? "" : this._t(`st_${m.state}`),
+        )
       : `
       <div class="head${c.navigation_path ? " nav" : ""}"${c.navigation_path ? ' role="link" tabindex="0"' : ""}>
         <div class="badge"><ha-icon icon="${m.none ? "mdi:water-boiler" : WH_ICONS[m.state]}"></ha-icon></div>
@@ -551,6 +601,7 @@ class WaterHeaterCard extends RcCard {
     // No water heater: say so, rather than draw a tank.
     if (m.none) {
       this._paint("off", `${head}<div class="none">${rcEsc(this._t("no_heater"))}</div>`, "");
+      this._fitPill();
       return;
     }
     // The glass panel's text gets too small on a narrow card: the same as a line under the scene (shown by CSS).
@@ -564,6 +615,7 @@ class WaterHeaterCard extends RcCard {
           : `<button class="sc" title="${rcEsc(m.raw || status)}">${whScene({ ...scene, share: m.share, dark, uid: this._id(), animate: this._animate() })}</button>${line ? `<div class="sl">${rcEsc(line)}</div>` : ""}`;
     const error = m.error && c.show_scene === false ? `<div class="err" role="alert">${rcEsc(m.error)}</div>` : "";
     this._paint(m.state, head + html + error, tiles.map((t) => this._tile(t)).join(""));
+    this._fitPill();
   }
 
   _afterGrid() {
@@ -708,10 +760,42 @@ class WaterHeaterCard extends RcCard {
     @keyframes wh-pl { to { stroke-dashoffset: -30; } }
     .banner .ground { position: absolute; left: 0; right: 0; bottom: 0; height: 10px; background: #9aa1a9; box-shadow: inset 0 2px 0 #b5bbc2; }
     .banner.night .ground { background: #1f2329; box-shadow: inset 0 2px 0 #3a4048; }
-    .banner .zoom { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; margin: 0; color: #10283f; background: rgba(255,255,255,.6); }
-    .banner.night .zoom { color: #fff; background: rgba(10,20,40,.5); }
-    .banner .zoom:hover { background: rgba(255,255,255,.85); color: #10283f; }
-    .banner.night .zoom:hover { background: rgba(10,20,40,.7); color: #fff; }
+    /* The mini card's expand / collapse button: 24 px, frosted, 5 px from the banner's top right corner. */
+    .banner .zoom { position: absolute; z-index: 2; top: 5px; right: 5px; width: 24px; height: 24px; margin: 0; color: #33506b;
+                    background: rgba(255,255,255,.55); box-shadow: inset 0 0 0 1px rgba(255,255,255,.7); backdrop-filter: blur(4px); }
+    .banner.night .zoom { color: #fff; background: rgba(255,255,255,.12); box-shadow: inset 0 0 0 1px rgba(255,255,255,.2); }
+    .banner .zoom:hover { background: rgba(255,255,255,.75); color: #33506b; }
+    .banner.night .zoom:hover { background: rgba(255,255,255,.22); color: #fff; }
+    /* The banner's head stays on one line (the classic header's narrow wrap is for its pill). */
+    .banner .head { flex-wrap: nowrap; }
+    .banner .head::after { content: none; }
+    .banner .tt { min-width: 0; flex: 1 1 auto; }
+    /* Status pill right after the title, in the state's colour on a frosted tint; the title is cut first (about four
+       characters kept). When it does not fit there (measured by the card, or a narrow card) it goes on its own line
+       under the subtitle, where it may run over the left of the scene; very narrow, its dot alone. */
+    .trow { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .banner .trow .title { flex: 0 100 auto; min-width: 4ch; }
+    :host([hide-title]) .trow .title { visibility: hidden; }
+    .bpill { display: inline-flex; align-items: center; gap: 4px; flex: 0 1 auto; min-width: 0; max-width: 51%; box-sizing: border-box; overflow: hidden;
+             white-space: nowrap; padding: 1px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; line-height: 16px;
+             background: color-mix(in srgb, var(--c) 18%, rgba(255,255,255,.78)); color: color-mix(in srgb, var(--c) 45%, #0d2a45); }
+    .banner.night .bpill { background: color-mix(in srgb, var(--c) 30%, rgba(8,18,38,.55)); color: color-mix(in srgb, var(--c) 35%, #ffffff); }
+    .bdot { width: 7px; height: 7px; border-radius: 50%; background: var(--c); flex: none; }
+    .bpt { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .banner[data-wrap] .tt { display: flex; flex-direction: column; }
+    .banner[data-wrap] .trow { display: contents; }
+    .banner[data-wrap] .bpill { order: 9; align-self: flex-start; max-width: calc(100cqw - 80px); margin-top: 3px; }
+    /* Narrow card: the scene gives up some width so that the title keeps about four characters. */
+    @container (max-width: 280px) { .banner, ha-card.bn > .banner { --sw: 40%; } }
+    @container (max-width: 260px) {
+      .banner .tt { display: flex; flex-direction: column; }
+      .banner .trow { display: contents; }
+      .banner .bpill { order: 9; align-self: flex-start; max-width: calc(100cqw - 80px); margin-top: 3px; }
+    }
+    @container (max-width: 200px) {
+      .bpill { padding: 0; background: none; }
+      .bpt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    }
     /* The mini card: the banner alone, its readings as chips on the wall. */
     ha-card.bn { padding: 0; }
     ha-card.bn > .banner { margin: 0; --sw: min(200px, 46%); }
@@ -811,6 +895,12 @@ class WaterHeaterMiniCard extends rcMini(
       .filter(Boolean)
       .map((t, i) => chip(t, i > 0))
       .join("");
+    // The banner: the state is the status pill after the title, the other readings stay as chips under it.
+    const state = { error: this._t("st_error"), away: this._t("st_away"), offline: this._t("st_offline") }[m.state] || this._t(`st_${m.state}`);
+    const rest = (m.state === "error" ? [m.error] : chips.slice(1))
+      .filter(Boolean)
+      .map((t) => chip(t, true))
+      .join("");
     // The ring around the badge: the share of hot water.
     const pct = m.share != null ? m.share * 100 : 0;
     const L = 2 * Math.PI * 17;
@@ -819,10 +909,11 @@ class WaterHeaterMiniCard extends rcMini(
     if (banner) {
       const c = this._config;
       this.shadowRoot.innerHTML = `<style>${RC_BASE_STYLES}${this.constructor.styles}</style>
-        <ha-card class="lvl-${m.state} bn">${this._banner(m, `<div class="rs">${html}</div>`, night, scene, ring(""))}</ha-card>`;
+        <ha-card class="lvl-${m.state} bn">${this._banner(m, rest ? `<div class="rs">${rest}</div>` : "", night, scene, ring(""), WH_ROOM_CX, state)}</ha-card>`;
       const root = this.shadowRoot;
       if (c.navigation_path) rcBindNav(root.querySelector(".head"), c.navigation_path);
       for (const el of root.querySelectorAll(".r")) el.addEventListener("click", () => rcMoreInfo(this, el.dataset.id));
+      this._fitPill();
       return;
     }
     this._paintMini({ level: m.state, icon: WH_ICONS[m.state], status: "", chips: html });
