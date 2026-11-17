@@ -92,6 +92,20 @@ export const openPage = async (browser, { theme, width, icons = {}, label = "", 
   return page;
 };
 
+// The same page, the bundle loaded from a (routed) URL instead of inline, so that it fetches its translation files
+// from dist/ like in Home Assistant: for the tests in other languages than English.
+export const openServedPage = async (browser, { theme, width, icons = {} }) => {
+  const page = await browser.newPage({ viewport: { width: 1000, height: 2000 } });
+  page.on("pageerror", (err) => console.error(`pageerror: ${err.message}`));
+  await page.route("http://card.test/**", (route) => {
+    const file = new URL(route.request().url()).pathname.slice(1);
+    if (file === "index.html") return route.fulfill({ contentType: "text/html", body: pageHtml(theme, width).replace("</body>", `<script>${haElements(icons)}</script><script src="ha-water-heater-card.js"></script></body>`) });
+    return route.fulfill({ contentType: "text/javascript", body: readFileSync(`${root}dist/${file}`, "utf8") });
+  });
+  await page.goto("http://card.test/index.html");
+  return page;
+};
+
 // Creates the card in the page, with `open` (a selector) clicked once rendered.
 export const mountCard = (page, { tag, hass, config, dark = false, open = null }) =>
   page.evaluate(

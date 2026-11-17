@@ -1,7 +1,8 @@
-// The illustrated header in Chromium (needs `npm run build`; skipped without Chromium): the status pill shows its
-// whole label from 245 to 500 px (right after the title, else on its own line under the subtitle), never more than
-// about half of the title row, next to a readable title; the mini card's expand / collapse button is a 24 px round
-// button 5 px from the banner's top right corner, clear of the tank's pipes.
+// The status pill in Chromium (needs `npm run build`; skipped without Chromium), in en, fr, de, hu, el and ru, from
+// 190 to 500 px, on the full card (banner and classic header) and the mini card (compact and expanded): on the title
+// row only with the whole title beside it; else on its own line under the subtitle, its label whole; or its dot
+// alone (always at 190 px). Nothing below the top of the banner's ground strip or out of the banner. The mini card's
+// expand / collapse button is a 24 px round button 5 px from the banner's top right corner, clear of the tank's pipes.
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { test } from "node:test";
@@ -15,45 +16,88 @@ try {
 const built = existsSync(new URL("../dist/ha-water-heater-card.js", import.meta.url));
 const browser = built ? await harness?.launch().catch(() => null) : null;
 
-test("status pill shows its whole label next to a readable title; the zoom button sits at the banner corner", { skip: !browser && "no Chromium or no build" }, async () => {
+const VARIANTS = [
+  ["water-heater-card", false, true],
+  ["water-heater-mini-card", false, true],
+  ["water-heater-mini-card", true, true],
+  ["water-heater-card", false, false],
+];
+
+test("status pill: whole title beside it, whole label or dot alone, inside the banner; zoom button at the corner", { skip: !browser && "no Chromium or no build" }, async () => {
   const failures = [];
   try {
-    for (const scene of ["heating", "away", "error"]) {
-      for (const width of [245, 300, 400, 500]) {
-        for (const [tag, zoom] of [["water-heater-card", false], ["water-heater-mini-card", false], ["water-heater-mini-card", true]]) {
-          const { hass, config } = mock.setup({ scene, theme: "light", config: { animations: false } }, "en");
-          const page = await harness.openPage(browser, { theme: "light", width });
-          await harness.mountCard(page, { tag, hass, config, open: zoom ? ".zoom" : null });
-          await page.waitForTimeout(400);
-          const out = await page.evaluate(() => {
-            const r = document.querySelector("#root").firstElementChild.shadowRoot;
-            const res = [];
-            const pill = r.querySelector(".banner .bpill");
-            if (!pill) return ["no pill"];
-            const txt = pill.querySelector(".bpt");
-            if (txt.scrollWidth > txt.clientWidth + 0.5 || !txt.clientWidth) res.push("label cut");
-            const nb = r.querySelector(".banner .title").getBoundingClientRect();
-            if (nb.width < 24) res.push(`title ${Math.round(nb.width)}px`);
-            const pb = pill.getBoundingClientRect();
-            const onRow = Math.abs(pb.top + pb.height / 2 - (nb.top + nb.height / 2)) < 3;
-            const row = r.querySelector(".trow").getBoundingClientRect();
-            if (onRow && pb.width > row.width * 0.51 + 0.5) res.push(`pill ${Math.round(pb.width)} of ${Math.round(row.width)}px`);
-            const bb = r.querySelector(".banner").getBoundingClientRect();
-            if (pb.right > bb.right - 4 || pb.bottom > bb.bottom - 10) res.push("pill out of the banner");
-            const z = r.querySelector(".banner .zoom")?.getBoundingClientRect();
-            if (z && (Math.round(z.width) !== 24 || Math.round(z.height) !== 24 || Math.round(z.top - bb.top) !== 5 || Math.round(bb.right - z.right) !== 5))
-              res.push(`zoom ${Math.round(z.width)}x${Math.round(z.height)} at ${Math.round(z.top - bb.top)}/${Math.round(bb.right - z.right)}`);
-            // The cold water pipe (blue) stays clear of the button.
-            const pipe = [...r.querySelectorAll('.room path[stroke="#3b7fd4"]')].map((p) => p.getBoundingClientRect())[0];
-            if (z && pipe && pipe.right > z.left && pipe.top < z.bottom) res.push("the zoom button covers the pipe");
-            return res;
-          });
-          if (tag.includes("mini") && !(await page.evaluate(() => !!document.querySelector("#root").firstElementChild.shadowRoot.querySelector(".banner .zoom"))))
-            out.push("no zoom button");
-          for (const f of out) failures.push(`${tag}${zoom ? " zoomed" : ""} ${scene} ${width}px: ${f}`);
-          await page.close();
+    for (const width of [190, 245, 300, 400, 460, 500]) {
+      const page = await harness.openServedPage(browser, { theme: "light", width });
+      for (const language of ["en", "fr", "de", "hu", "el", "ru"]) {
+        for (const scene of ["heating", "away", "error"]) {
+          for (const [tag, zoom, ill] of VARIANTS) {
+            for (const title of [undefined, "A very long name for the water heater of the house"]) {
+              const { hass, config } = mock.setup({ scene, theme: "light", config: { animations: false, ...(ill ? {} : { illustration: false }), ...(title ? { title } : {}) } });
+              const out = await page.evaluate(
+                async ({ tag, hass, config, zoom, ill, width, language }) => {
+                  const frames = (n) => new Promise((r) => {
+                    const step = () => (n-- > 0 ? requestAnimationFrame(step) : r());
+                    step();
+                  });
+                  const root = document.getElementById("root");
+                  root.innerHTML = "";
+                  const el = document.createElement(tag);
+                  el.setConfig({ type: `custom:${tag}`, ...config });
+                  el.hass = { ...hass, language, locale: { language }, themes: { darkMode: false }, callService: async () => {} };
+                  root.appendChild(el);
+                  await frames(2);
+                  // The first card in a language fetches its translations, then draws again.
+                  if (!window.__langs?.has(language)) {
+                    (window.__langs ??= new Set()).add(language);
+                    await new Promise((r) => setTimeout(r, 300));
+                    await frames(2);
+                  }
+                  if (zoom) el.shadowRoot.querySelector(".zoom").dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true, detail: 1 }));
+                  await frames(4);
+                  const r = el.shadowRoot;
+                  const res = [];
+                  const head = r.querySelector(ill ? ".banner" : ".head");
+                  const pill = head?.querySelector(ill ? ".bpill" : ".pill");
+                  if (!pill) return ["no pill"];
+                  const txt = pill.querySelector(".bpt, .pt");
+                  const dotOnly = txt.getBoundingClientRect().width <= 1;
+                  if (width <= 200 && !dotOnly) res.push("label shown");
+                  if (!dotOnly && (txt.scrollWidth > txt.clientWidth + 0.5 || !txt.clientWidth)) res.push("label cut");
+                  const name = head.querySelector(".title");
+                  const nb = name.getBoundingClientRect();
+                  const pb = pill.getBoundingClientRect();
+                  const onRow = Math.abs(pb.top + pb.height / 2 - (nb.top + nb.height / 2)) < 3;
+                  if (onRow && !dotOnly && name.scrollWidth > name.clientWidth + 0.5) res.push("title cut beside the pill");
+                  if (!onRow && dotOnly) res.push("dot alone off the title row");
+                  if (!onRow && pb.top < nb.bottom - 0.5) res.push("pill over the title");
+                  const row = name.parentElement.getBoundingClientRect();
+                  if (!onRow && width > 200 && name.scrollWidth + 8 + pb.width <= row.right - nb.left - 1) res.push("pill under the subtitle although it fits beside the title");
+                  const bb = head.getBoundingClientRect();
+                  if (pb.right > bb.right + 0.5) res.push("pill out of the header");
+                  if (ill) {
+                    const floor = head.querySelector(".ground").getBoundingClientRect().top;
+                    for (const [what, e] of [["title", name], ["pill", pill], ["subtitle", head.querySelector(".subt, .rs")]]) {
+                      const b = e?.getBoundingClientRect();
+                      if (b && (b.bottom > floor + 0.5 || b.top < bb.top - 0.5)) res.push(`${what} out of the banner or over its ground strip`);
+                    }
+                    const z = head.querySelector(".zoom")?.getBoundingClientRect();
+                    if (tag.includes("mini") && !z) res.push("no zoom button");
+                    if (z && (Math.round(z.width) !== 24 || Math.round(z.height) !== 24 || Math.round(z.top - bb.top) !== 5 || Math.round(bb.right - z.right) !== 5))
+                      res.push(`zoom ${Math.round(z.width)}x${Math.round(z.height)} at ${Math.round(z.top - bb.top)}/${Math.round(bb.right - z.right)}`);
+                    // The cold water pipe (blue) stays clear of the button.
+                    const pipe = [...head.querySelectorAll('.room path[stroke="#3b7fd4"]')].map((p) => p.getBoundingClientRect())[0];
+                    if (z && pipe && pipe.right > z.left && pipe.top < z.bottom) res.push("the zoom button covers the pipe");
+                  }
+                  return res;
+                },
+                { tag, hass, config, zoom, ill, width, language },
+              );
+              for (const f of out) failures.push(`${language} ${tag}${zoom ? " zoomed" : ""}${ill ? "" : " classic"} ${scene} ${width}px${title ? " long title" : ""}: ${f}`);
+            }
+          }
         }
       }
+      await page.close();
     }
   } finally {
     await browser.close();

@@ -75,7 +75,7 @@ test("full card: header, illustration, tiles and controls while heating", () => 
   // utility room (no second tank below), the panel's readings under it.
   assert.match(html, /class="banner"/);
   // The state is the status pill right after the title, the temperature under it.
-  assert.match(html, /<div class="trow"><div class="title">[^<]*<\/div><span class="bpill" title="[^"]*"><span class="bdot"><\/span><span class="bpt">Heating<\/span>/);
+  assert.match(html, /<div class="trow"><div class="title">[^<]*<\/div><span class="bpill" title="[^"]*" aria-label="[^"]*"><span class="bdot"><\/span><span class="bpt">Heating<\/span>/);
   assert.match(html, /<div class="subt">54 °C<\/div>/);
   assert.match(html, /title="Utility room · Explorer v4"/);
   assert.match(html, /ha-icon icon="mdi:water-boiler"/);

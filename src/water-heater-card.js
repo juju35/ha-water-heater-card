@@ -184,6 +184,33 @@ const whClip = (t, max) => (t && t.length > max ? `${t.slice(0, max - 1).trimEnd
 // The illustrated header's room: a utility corner, 200 × 80, drawn to the banner's right edge. A tiled wall, the hot
 // and cold water pipes coming down from the ceiling (the hot one pulses while the tank heats), a shelf of bottles, the
 // washing machine and the floor drain; the tank (whScene's, bare) stands on the floor at `cx`. By night, darker.
+// The status pill's place, decided by measurement after each render and each new width (the same rule on every
+// card): on the title row, right after the title, only when the whole title and the pill's whole label fit there;
+// otherwise on its own line under the subtitle (clamped to one line), the title whole on its row (cut only when it
+// does not fit alone). When the label is still cut there, or the text block leaves the banner or runs over its ground
+// strip, the pill keeps its dot alone, on the title row (its label stays in title and aria-label). A card of 200 px
+// or less shows the dot alone anyway (CSS), beside the title.
+const whPlacePill = (head, row, ground) => {
+  if (!head) return;
+  head.removeAttribute("data-wrap");
+  head.removeAttribute("data-dot");
+  const pill = row.querySelector(":scope > .bpill, :scope > .pill");
+  const text = pill?.querySelector(".bpt, .pt");
+  if (!text?.getBoundingClientRect || text.getBoundingClientRect().width <= 1) return;
+  const name = row.querySelector(".title");
+  const gap = parseFloat(getComputedStyle(row).columnGap) || 0;
+  const title = name ? (name.scrollWidth > name.clientWidth ? name.scrollWidth : name.getBoundingClientRect().width) + gap : 0;
+  if (title + pill.getBoundingClientRect().width <= row.getBoundingClientRect().width + 0.5) return;
+  head.setAttribute("data-wrap", "");
+  const box = row.parentElement.getBoundingClientRect();
+  const frame = head.getBoundingClientRect();
+  const out = ground && (box.bottom > ground.getBoundingClientRect().top + 0.5 || box.top < frame.top - 0.5);
+  if (text.scrollWidth > text.clientWidth + 0.5 || out) {
+    head.removeAttribute("data-wrap");
+    head.setAttribute("data-dot", "");
+  }
+};
+
 const WH_ROOM_CX = 140;
 const whRoom = (night, flowing, shelf = true, dx = 0) => {
   const [wall, band, joint] = night ? ["#25282c", "#2c3034", "#33373c"] : ["#ece8e1", "#f4f1ec", "#ddd6cb"];
@@ -415,7 +442,7 @@ class WaterHeaterCard extends RcCard {
     const dx = this._addZoom && c.zoom ? 24 : 0;
     const tank = scene ? whScene({ ...scene, share: m.share, dark: night, uid: this._id(), animate: this._animate(), bare: { cx: cx - dx } }) : "";
     // The status pill right after the title (on its own line under the subtitle when it does not fit there).
-    const chip = pill ? `<span class="bpill" title="${rcEsc(m.raw || pill)}"><span class="bdot"></span><span class="bpt">${rcEsc(pill)}</span></span>` : "";
+    const chip = pill ? `<span class="bpill" title="${rcEsc(m.raw || pill)}" aria-label="${rcEsc(pill)}"><span class="bdot"></span><span class="bpt">${rcEsc(pill)}</span></span>` : "";
     return `
       <div class="banner${night ? " night" : ""}">
         <div class="head${nav ? " nav" : ""}"${nav ? ' role="link" tabindex="0"' : ""}${m.sub ? ` title="${rcEsc(m.sub)}"` : ""}>
@@ -427,20 +454,12 @@ class WaterHeaterCard extends RcCard {
       </div>`;
   }
 
-  // The banner's status pill goes on its own line under the subtitle when it is cut next to the title. Fractional
-  // widths: scrollWidth / clientWidth are rounded and miss a label cut by less than a pixel.
+  // The status pill's place, on the banner and on the classic header (see whPlacePill).
   _fitPill() {
-    const pill = this.shadowRoot?.querySelector?.(".trow .bpill");
-    const banner = pill?.closest?.(".banner");
-    if (!banner || !pill.getBoundingClientRect) return;
-    banner.removeAttribute("data-wrap");
-    const have = pill.getBoundingClientRect().width;
-    pill.style.maxWidth = "none";
-    pill.style.flex = "none";
-    const need = pill.getBoundingClientRect().width;
-    pill.style.maxWidth = "";
-    pill.style.flex = "";
-    if (need > have + 0.01) banner.setAttribute("data-wrap", "");
+    for (const row of this.shadowRoot?.querySelectorAll?.(".trow") || []) {
+      const banner = row.closest(".banner");
+      whPlacePill(banner || row.closest(".head"), row, banner?.querySelector(".ground"));
+    }
   }
 
   connectedCallback() {
@@ -596,8 +615,7 @@ class WaterHeaterCard extends RcCard {
       : `
       <div class="head${c.navigation_path ? " nav" : ""}"${c.navigation_path ? ' role="link" tabindex="0"' : ""}>
         <div class="badge"><ha-icon icon="${m.none ? "mdi:water-boiler" : WH_ICONS[m.state]}"></ha-icon></div>
-        <div class="tt"><div class="title">${rcEsc(m.name)}</div>${m.sub ? `<div class="subt">${rcEsc(m.sub)}</div>` : ""}</div>
-        ${m.none ? "" : `<span class="pill" title="${rcEsc(m.raw || status)}"><span class="pt">${rcEsc(status)}</span></span>`}
+        <div class="tt"><div class="trow"><div class="title">${rcEsc(m.name)}</div>${m.none ? "" : `<span class="pill" title="${rcEsc(m.raw || status)}" aria-label="${rcEsc(status)}"><span class="pt">${rcEsc(status)}</span></span>`}</div>${m.sub ? `<div class="subt" title="${rcEsc(m.sub)}">${rcEsc(m.sub)}</div>` : ""}</div>
       </div>`;
     // No water heater: say so, rather than draw a tank.
     if (m.none) {
@@ -771,31 +789,37 @@ class WaterHeaterCard extends RcCard {
     .banner .head { flex-wrap: nowrap; }
     .banner .head::after { content: none; }
     .banner .tt { min-width: 0; flex: 1 1 auto; }
-    /* Status pill right after the title, in the state's colour on a frosted tint; the title is cut first (about four
-       characters kept). When it does not fit there (measured by the card, or a narrow card) it goes on its own line
-       under the subtitle, where it may run over the left of the scene; very narrow, its dot alone. */
+    /* Status pill right after the title, in the state's colour on a frosted tint, only when the whole title and its
+       whole label fit there (measured by the card, see whPlacePill); otherwise on its own line under the subtitle
+       (one line then), where it may run over the left of the scene; when even that cuts it or leaves the banner, and
+       on a card of 200 px or less, its dot alone. The classic header follows the same rule. */
     .trow { display: flex; align-items: center; gap: 8px; min-width: 0; }
-    .banner .trow .title { flex: 0 100 auto; min-width: 4ch; }
+    .trow > .title { flex: 0 1 auto; min-width: 0; }
+    .trow > .bpill, .trow > .pill { flex: none; max-width: none; }
     :host([hide-title]) .trow .title { visibility: hidden; }
-    .bpill { display: inline-flex; align-items: center; gap: 4px; flex: 0 1 auto; min-width: 0; max-width: 51%; box-sizing: border-box; overflow: hidden;
+    .head:has(.trow) { flex-wrap: nowrap; }
+    .head:has(.trow)::after { content: none; }
+    .bpill { display: inline-flex; align-items: center; gap: 4px; min-width: 0; box-sizing: border-box; overflow: hidden;
              white-space: nowrap; padding: 1px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; line-height: 16px;
              background: color-mix(in srgb, var(--c) 18%, rgba(255,255,255,.78)); color: color-mix(in srgb, var(--c) 45%, #0d2a45); }
     .banner.night .bpill { background: color-mix(in srgb, var(--c) 30%, rgba(8,18,38,.55)); color: color-mix(in srgb, var(--c) 35%, #ffffff); }
     .bdot { width: 7px; height: 7px; border-radius: 50%; background: var(--c); flex: none; }
     .bpt { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-    .banner[data-wrap] .tt { display: flex; flex-direction: column; }
-    .banner[data-wrap] .trow { display: contents; }
-    .banner[data-wrap] .bpill { order: 9; align-self: flex-start; max-width: calc(100cqw - 80px); margin-top: 3px; }
+    [data-wrap] .trow { display: contents; }
+    [data-wrap] .trow > .bpill, [data-wrap] .trow > .pill { order: 9; align-self: flex-start; max-width: 100%; margin-top: 3px; }
+    .banner[data-wrap] .trow > .bpill { max-width: calc(100cqw - 80px); }
+    [data-wrap] .subt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    [data-dot] .bpill { padding: 0; background: none; }
+    [data-dot] .bpt, [data-dot] .trow > .pill .pt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    [data-dot] .trow > .pill { padding: 0; width: 18px; height: 18px; justify-content: center; background: none; }
+    [data-dot] .trow > .pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
     /* Narrow card: the scene gives up some width so that the title keeps about four characters. */
     @container (max-width: 280px) { .banner, ha-card.bn > .banner { --sw: 40%; } }
-    @container (max-width: 260px) {
-      .banner .tt { display: flex; flex-direction: column; }
-      .banner .trow { display: contents; }
-      .banner .bpill { order: 9; align-self: flex-start; max-width: calc(100cqw - 80px); margin-top: 3px; }
-    }
     @container (max-width: 200px) {
       .bpill { padding: 0; background: none; }
-      .bpt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+      .bpt, .trow > .pill .pt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+      .trow > .pill { padding: 0; width: 18px; height: 18px; justify-content: center; background: none; }
+      .trow > .pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
     }
     /* The mini card: the banner alone, its readings as chips on the wall. */
     ha-card.bn { padding: 0; }
