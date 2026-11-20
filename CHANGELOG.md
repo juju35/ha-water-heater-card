@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.2 - 2026-11-20
+
+### Fixes
+- README: the `device` option (a device id whose water heater the card shows when `entity` is not set) is documented, YAML only.
+
 ## 1.2.1 - 2026-11-18
 
 ### Fixes
