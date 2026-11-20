@@ -1,9 +1,17 @@
 # Changelog
 
-## 1.2.2 - 2026-11-20
+## 1.3.0 - 2026-11-20
+
+### Features
+- `show_subtitle` option (`true` by default), in the visual editor of both cards, as in the other juju35 cards: `false` hides the room and model under the title.
 
 ### Fixes
+- Boost and away set to an `input_boolean` helper in `entities` are turned on and off as one (they were called as a `switch`).
 - README: the `device` option (a device id whose water heater the card shows when `entity` is not set) is documented, YAML only.
+
+### Performance
+- The bundle no longer carries the room-card helpers, methods and translations this card never uses (225 KB → 171 KB, 117 KB once the languages are split); a test keeps dead code out.
+- The roles of the water heater's device are found again only when one of that device's states changes, not at every state change of the instance, and the number and date formats are made once per language.
 
 ## 1.2.1 - 2026-11-18
 
