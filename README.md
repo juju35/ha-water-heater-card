@@ -145,6 +145,7 @@ entities:
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `entity` | string | the first water heater found | A `water_heater` entity, the switch of a cumulus on a relay, or the power sensor of a PV-routed cumulus (read-only, heating above 50 W) |
+| `device` | string | | Advanced (YAML only): a device id — its `water_heater` entity (else its switch) is the water heater, when `entity` is not set |
 | `title` | string | the water heater's name | Card title |
 | `show_title` | boolean | `true` | Show the title |
 | `navigation_path` | string | | A tap on the header opens this dashboard path |
