@@ -60,7 +60,7 @@ test("every method is called", () => {
         continue;
       }
       if (n.type === "MethodDefinition" && n.key.type === "Identifier" && !n.static && !hooks.has(n.key.name)) {
-        const uses = all.match(new RegExp(`[^\\w$]${n.key.name.replace(/\$/g, "\\$")}(?![\\w$])`, "g")) || [];
+        const uses = all.match(new RegExp(`[^\\w$]${n.key.name.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&")}(?![\\w$])`, "g")) || [];
         if (uses.length < 2) unused.push(n.key.name);
       }
       for (const v of Object.values(n)) if (v && typeof v === "object") stack.push(v);
