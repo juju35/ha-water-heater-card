@@ -591,6 +591,15 @@ const whFind = (hass, entity, overrides = {}) => {
   return r;
 };
 
+// The Intl formats, made once per language and options (a render formats many numbers).
+const whIntlCache = new Map();
+const whIntl = (Kind, lang, opts) => {
+  const key = `${Kind.name}|${lang}|${JSON.stringify(opts)}`;
+  let f = whIntlCache.get(key);
+  if (!f) whIntlCache.set(key, (f = new Kind(lang, opts)));
+  return f;
+};
+
 // A temperature in °C, whatever the unit.
 const whCelsius = (v, unit) => (v == null ? null : /F/.test(unit || "") ? ((v - 32) * 5) / 9 : v);
 
@@ -664,6 +673,7 @@ const WH_I18N = {
     ed_show_scene: "Illustration",
     ed_animations: "Animations",
     ed_show_controls: "Controls",
+    ed_show_subtitle: "Show subtitle",
     ed_entities: "Entities (YAML)",
     solar_share: "{n}% solar",
     ed_entities_helper: "Overrides of the found entities, by role: temperature, inlet, level, litres, showers, power, energy, heating, boost, away, away_end, error, energy_grid, energy_solar",
@@ -725,6 +735,7 @@ const WH_I18N = {
     ed_show_scene: "Illustration",
     ed_animations: "Animations",
     ed_show_controls: "Commandes",
+    ed_show_subtitle: "Afficher le sous-titre",
     ed_entities: "Entités (YAML)",
     solar_share: "{n} % solaire",
     ed_entities_helper: "Remplace les entités trouvées, par rôle : temperature, inlet, level, litres, showers, power, energy, heating, boost, away, away_end, error, energy_grid, energy_solar",
@@ -786,6 +797,7 @@ const WH_I18N = {
     ed_show_scene: "Illustration",
     ed_animations: "Animationen",
     ed_show_controls: "Steuerung",
+    ed_show_subtitle: "Untertitel anzeigen",
     ed_entities: "Entitäten (YAML)",
     solar_share: "{n}% Solar",
     ed_entities_helper: "Ersetzt die gefundenen Entitäten, nach Rolle: temperature, inlet, level, litres, showers, power, energy, heating, boost, away, away_end, error, energy_grid, energy_solar",
@@ -847,6 +859,7 @@ const WH_I18N = {
     ed_show_scene: "Ilustración",
     ed_animations: "Animaciones",
     ed_show_controls: "Controles",
+    ed_show_subtitle: "Mostrar subtítulo",
     ed_entities: "Entidades (YAML)",
     solar_share: "{n}% solar",
     ed_entities_helper: "Sustituye las entidades encontradas, por función: temperature, inlet, level, litres, showers, power, energy, heating, boost, away, away_end, error, energy_grid, energy_solar",
@@ -909,6 +922,7 @@ const WH_I18N = {
     ed_show_scene: "Илустрација",
     ed_animations: "Анимације",
     ed_show_controls: "Команде",
+    ed_show_subtitle: "Прикажи поднаслов",
     ed_entities: "Ентитети (YAML)",
     solar_share: "{n}% соларно",
     ed_entities_helper: "Замењује пронађене ентитете, по улози: temperature, inlet, level, litres, showers, power, energy, heating, boost, away, away_end, error, energy_grid, energy_solar",
@@ -971,6 +985,7 @@ const WH_I18N = {
     ed_show_scene: "Ilustracija",
     ed_animations: "Animacije",
     ed_show_controls: "Komande",
+    ed_show_subtitle: "Prikaži podnaslov",
     ed_entities: "Entiteti (YAML)",
     solar_share: "{n}% solarno",
     ed_entities_helper: "Zamenjuje pronađene entitete, po ulozi: temperature, inlet, level, litres, showers, power, energy, heating, boost, away, away_end, error, energy_grid, energy_solar",
@@ -1032,6 +1047,7 @@ const WH_I18N = {
     ed_show_scene: "Illustrazione",
     ed_animations: "Animazioni",
     ed_show_controls: "Comandi",
+    ed_show_subtitle: "Mostra sottotitolo",
     ed_entities: "Entità (YAML)",
     solar_share: "{n}% solare",
     ed_entities_helper: "Sostituisce le entità trovate, per ruolo: temperature, inlet, level, litres, showers, power, energy, heating, boost, away, away_end, error, energy_grid, energy_solar",
@@ -1093,6 +1109,7 @@ const WH_I18N = {
     ed_show_scene: "Illustratie",
     ed_animations: "Animaties",
     ed_show_controls: "Bediening",
+    ed_show_subtitle: "Ondertitel tonen",
     ed_entities: "Entiteiten (YAML)",
     solar_share: "{n}% zon",
     ed_entities_helper: "Vervangt de gevonden entiteiten, per rol: temperature, inlet, level, litres, showers, power, energy, heating, boost, away, away_end, error, energy_grid, energy_solar",
@@ -1154,6 +1171,7 @@ const WH_I18N = {
     ed_show_scene: "Ilustração",
     ed_animations: "Animações",
     ed_show_controls: "Controlos",
+    ed_show_subtitle: "Mostrar subtítulo",
     ed_entities: "Entidades (YAML)",
     solar_share: "{n}% solar",
     ed_entities_helper: "Substitui as entidades encontradas, por função: temperature, inlet, level, litres, showers, power, energy, heating, boost, away, away_end, error, energy_grid, energy_solar",
@@ -1216,6 +1234,7 @@ const WH_I18N = {
     ed_show_scene: "Ilustracja",
     ed_animations: "Animacje",
     ed_show_controls: "Sterowanie",
+    ed_show_subtitle: "Pokaż podtytuł",
     ed_entities: "Encje (YAML)",
     solar_share: "{n}% słoneczna",
     ed_entities_helper: "Zastępuje znalezione encje, według roli: temperature, inlet, level, litres, showers, power, energy, heating, boost, away, away_end, error, energy_grid, energy_solar",
@@ -1278,6 +1297,7 @@ const WH_I18N = {
     ed_show_scene: "Ilustrație",
     ed_animations: "Animații",
     ed_show_controls: "Comenzi",
+    ed_show_subtitle: "Afișează subtitlul",
     ed_entities: "Entități (YAML)",
     solar_share: "{n}% solar",
     ed_entities_helper: "Înlocuiește entitățile găsite, după rol: temperature, inlet, level, litres, showers, power, energy, heating, boost, away, away_end, error, energy_grid, energy_solar",
@@ -1339,6 +1359,7 @@ const WH_I18N = {
     ed_show_scene: "Illustration",
     ed_animations: "Animationer",
     ed_show_controls: "Betjening",
+    ed_show_subtitle: "Vis undertitel",
     ed_entities: "Enheder (YAML)",
     solar_share: "{n}% sol",
     ed_entities_helper: "Erstatter de fundne enheder, efter rolle: temperature, inlet, level, litres, showers, power, energy, heating, boost, away, away_end, error, energy_grid, energy_solar",
@@ -1400,6 +1421,7 @@ const WH_I18N = {
     ed_show_scene: "Illustration",
     ed_animations: "Animationer",
     ed_show_controls: "Reglage",
+    ed_show_subtitle: "Visa undertitel",
     ed_entities: "Entiteter (YAML)",
     solar_share: "{n}% sol",
     ed_entities_helper: "Ersätter de hittade entiteterna, per roll: temperature, inlet, level, litres, showers, power, energy, heating, boost, away, away_end, error, energy_grid, energy_solar",
@@ -1461,6 +1483,7 @@ const WH_I18N = {
     ed_show_scene: "Илюстрация",
     ed_animations: "Анимации",
     ed_show_controls: "Управление",
+    ed_show_subtitle: "Покажи подзаглавие",
     ed_entities: "Обекти (YAML)",
     solar_share: "{n}% слънчево",
     ed_entities_helper: "Заменя намерените обекти, по роля: temperature, inlet, level, litres, showers, power, energy, heating, boost, away, away_end, error, energy_grid, energy_solar",
@@ -1523,6 +1546,7 @@ const WH_I18N = {
     ed_show_scene: "Иллюстрация",
     ed_animations: "Анимации",
     ed_show_controls: "Управление",
+    ed_show_subtitle: "Показывать подзаголовок",
     ed_entities: "Объекты (YAML)",
     solar_share: "{n}% солнце",
     ed_entities_helper: "Заменяет найденные объекты, по роли: temperature, inlet, level, litres, showers, power, energy, heating, boost, away, away_end, error, energy_grid, energy_solar",
@@ -1585,6 +1609,7 @@ const WH_I18N = {
     ed_show_scene: "Ілюстрація",
     ed_animations: "Анімації",
     ed_show_controls: "Керування",
+    ed_show_subtitle: "Показувати підзаголовок",
     ed_entities: "Об'єкти (YAML)",
     solar_share: "{n}% сонячна",
     ed_entities_helper: "Замінює знайдені об'єкти, за роллю: temperature, inlet, level, litres, showers, power, energy, heating, boost, away, away_end, error, energy_grid, energy_solar",
@@ -1646,6 +1671,7 @@ const WH_I18N = {
     ed_show_scene: "Illusztráció",
     ed_animations: "Animációk",
     ed_show_controls: "Vezérlők",
+    ed_show_subtitle: "Alcím megjelenítése",
     ed_entities: "Entitások (YAML)",
     solar_share: "{n}% nap",
     ed_entities_helper: "Felülírja a talált entitásokat, szerepkör szerint: temperature, inlet, level, litres, showers, power, energy, heating, boost, away, away_end, error, energy_grid, energy_solar",
@@ -1708,6 +1734,7 @@ const WH_I18N = {
     ed_show_scene: "Ilustrácia",
     ed_animations: "Animácie",
     ed_show_controls: "Ovládanie",
+    ed_show_subtitle: "Zobraziť podnadpis",
     ed_entities: "Entity (YAML)",
     solar_share: "{n}% solár",
     ed_entities_helper: "Nahrádza nájdené entity, podľa role: temperature, inlet, level, litres, showers, power, energy, heating, boost, away, away_end, error, energy_grid, energy_solar",
@@ -1770,6 +1797,7 @@ const WH_I18N = {
     ed_show_scene: "Ilustrace",
     ed_animations: "Animace",
     ed_show_controls: "Ovládání",
+    ed_show_subtitle: "Zobrazit podtitul",
     ed_entities: "Entity (YAML)",
     solar_share: "{n}% solár",
     ed_entities_helper: "Nahrazuje nalezené entity, podle role: temperature, inlet, level, litres, showers, power, energy, heating, boost, away, away_end, error, energy_grid, energy_solar",
@@ -1832,6 +1860,7 @@ const WH_I18N = {
     ed_show_scene: "Ilustracija",
     ed_animations: "Animacije",
     ed_show_controls: "Upravljanje",
+    ed_show_subtitle: "Prikaži podnaslov",
     ed_entities: "Entitete (YAML)",
     solar_share: "{n}% sonce",
     ed_entities_helper: "Nadomesti najdene entitete, po vlogi: temperature, inlet, level, litres, showers, power, energy, heating, boost, away, away_end, error, energy_grid, energy_solar",
@@ -1893,6 +1922,7 @@ const WH_I18N = {
     ed_show_scene: "Ilustrācija",
     ed_animations: "Animācijas",
     ed_show_controls: "Vadība",
+    ed_show_subtitle: "Rādīt apakšvirsrakstu",
     ed_entities: "Entītijas (YAML)",
     solar_share: "{n}% saules",
     ed_entities_helper: "Aizstāj atrastās entītijas, pēc lomas: temperature, inlet, level, litres, showers, power, energy, heating, boost, away, away_end, error, energy_grid, energy_solar",
@@ -1954,6 +1984,7 @@ const WH_I18N = {
     ed_show_scene: "Εικονογράφηση",
     ed_animations: "Κινούμενα σχέδια",
     ed_show_controls: "Χειρισμός",
+    ed_show_subtitle: "Εμφάνιση υπότιτλου",
     ed_entities: "Οντότητες (YAML)",
     solar_share: "{n}% ηλιακή",
     ed_entities_helper: "Αντικαθιστά τις οντότητες που βρέθηκαν, ανά ρόλο: temperature, inlet, level, litres, showers, power, energy, heating, boost, away, away_end, error, energy_grid, energy_solar",

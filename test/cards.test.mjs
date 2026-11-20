@@ -394,3 +394,35 @@ test("translations: every language has every key of English, with the same place
   assert.equal(fr._status(fr._items), "En chauffe · 54 °C");
   assert.equal(fr._showers(fr._items).label, "douches");
 });
+
+test("show_subtitle: false hides the room and model under the title, in both headers", () => {
+  for (const illustration of [true, false]) {
+    assert.match(make("water-heater-card", { ...HEATER, illustration }).shadowRoot.innerHTML, /Utility room · Explorer v4/);
+    assert.doesNotMatch(make("water-heater-card", { ...HEATER, illustration, show_subtitle: false }).shadowRoot.innerHTML, /Utility room|Explorer v4/);
+  }
+});
+
+test("away and boost as input_boolean helpers (entities): turned on and off in their own domain", () => {
+  const h = makeHass();
+  const a = h.states["water_heater.explorer"].attributes;
+  delete a.away_mode;
+  h.states["input_boolean.away"] = st("input_boolean.away", "off", { friendly_name: "Away" });
+  h.states["input_boolean.boost"] = st("input_boolean.boost", "on", { friendly_name: "Boost" });
+  const card = make("water-heater-card", { ...HEATER, entities: { away: "input_boolean.away", boost: "input_boolean.boost" } }, h);
+  click(card, ".act-away");
+  click(card, ".act-boost");
+  assert.deepEqual(json(h.calls), [
+    ["input_boolean", "turn_on", { entity_id: "input_boolean.away" }],
+    ["input_boolean", "turn_off", { entity_id: "input_boolean.boost" }],
+  ]);
+});
+
+test("the roles are found again only when a state of the water heater's own device changes", () => {
+  const h = makeHass();
+  const card = make("water-heater-card", HEATER, h);
+  const found = card._memo.find.value;
+  card.hass = { ...h, states: { ...h.states, "sensor.tariff": st("sensor.tariff", "Peak") } };
+  assert.equal(card._memo.find.value, found);
+  card.hass = { ...h, states: { ...h.states, "sensor.explorer_power": st("sensor.explorer_power", "0", { device_class: "power", unit_of_measurement: "W" }) } };
+  assert.notEqual(card._memo.find.value, found);
+});

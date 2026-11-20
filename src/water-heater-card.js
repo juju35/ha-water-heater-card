@@ -266,7 +266,7 @@ const whModeIcon = (mode) => {
 class WaterHeaterCard extends RcCard {
   static tag = "water-heater-card";
   static i18n = WH_I18N;
-  static defaults = { illustration: true, illustration_theme: "auto", show_scene: true, animations: true, show_controls: true };
+  static defaults = { illustration: true, illustration_theme: "auto", show_subtitle: true, show_scene: true, animations: true, show_controls: true };
 
   // The most likely water heater of the home.
   static getStubConfig(hass) {
@@ -300,7 +300,7 @@ class WaterHeaterCard extends RcCard {
 
   _fmt(v, digits) {
     try {
-      return new Intl.NumberFormat(this._lang(), { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(v);
+      return whIntl(Intl.NumberFormat, this._lang(), { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(v);
     } catch {
       return v.toFixed(digits);
     }
@@ -319,8 +319,10 @@ class WaterHeaterCard extends RcCard {
     const c = this._config;
     const id = this._entityId();
     const ent = id ? h.states[id] : undefined;
-    // The roles read the states too (a sensor unavailable after a restart is skipped): found again when they change.
-    const e = rcMemo((this._memo ||= {}), "find", [id, c.entities, h.entities, h.devices, h.states], () => whFind(h, id, c.entities || {}));
+    // The roles read the states too (a sensor unavailable after a restart is skipped): found again when the states of
+    // the water heater's own device change, not at every state change of the instance.
+    const devIds = (id && whDeviceEntities(h)[whDeviceOf(h, id)]) || [];
+    const e = rcMemo((this._memo ||= {}), "find", [id, c.entities, h.entities, h.devices, ...devIds.map((x) => h.states[x])], () => whFind(h, id, c.entities || {}));
     const st = (role) => (e[role] ? h.states[e[role]] : undefined);
     const on = (role) => st(role)?.state === "on";
     const wh = !!id?.startsWith("water_heater.");
@@ -383,7 +385,7 @@ class WaterHeaterCard extends RcCard {
       state,
       raw: ent ? h.formatEntityState?.(ent) || ent.state : "",
       name: c.title || a.friendly_name || dev?.name_by_user || dev?.name || this._t("title"),
-      sub: [h.areas?.[dev?.area_id]?.name, dev?.model].filter(Boolean).join(" · "),
+      sub: c.show_subtitle === false ? "" : [h.areas?.[dev?.area_id]?.name, dev?.model].filter(Boolean).join(" · "),
       unit,
       temp,
       target,
@@ -511,7 +513,7 @@ class WaterHeaterCard extends RcCard {
 
   _date(d) {
     try {
-      return new Intl.DateTimeFormat(this._lang(), { weekday: "short", day: "numeric", month: "short" }).format(d);
+      return whIntl(Intl.DateTimeFormat, this._lang(), { weekday: "short", day: "numeric", month: "short" }).format(d);
     } catch {
       return d.toDateString();
     }
@@ -679,11 +681,11 @@ class WaterHeaterCard extends RcCard {
         if (mode && mode !== m.mode) rcCall(h, "water_heater", "set_operation_mode", { entity_id: m.id, operation_mode: mode });
       });
     }
-    on(".act-boost", () => rcCall(h, "switch", m.boostOn ? "turn_off" : "turn_on", { entity_id: m.boostId }));
+    on(".act-boost", () => rcCall(h, m.boostId.split(".")[0], m.boostOn ? "turn_off" : "turn_on", { entity_id: m.boostId }));
     on(".act-away", () =>
       m.awayAttr
         ? rcCall(h, "water_heater", "set_away_mode", { entity_id: m.id, away_mode: !m.awayOn })
-        : rcCall(h, "switch", m.awayOn ? "turn_off" : "turn_on", { entity_id: m.awayId }),
+        : rcCall(h, m.awayId.split(".")[0], m.awayOn ? "turn_off" : "turn_on", { entity_id: m.awayId }),
     );
     on(".act-relay", () => rcCall(h, m.relayId.split(".")[0], m.relayOn ? "turn_off" : "turn_on", { entity_id: m.relayId }));
     // Quick presses add up: each step starts from the target asked last (until the water heater reports it), shown at once.
@@ -876,7 +878,7 @@ const WH_HELPERS = ["entity", "title", "temperature", "capacity", "shower_volume
 const WaterHeaterCardEditor = rcEditor({
   card: WaterHeaterCard,
   helpers: WH_HELPERS,
-  schema: whSchema(["show_title", "illustration", "show_scene", "animations", "show_controls"]),
+  schema: whSchema(["show_title", "show_subtitle", "illustration", "show_scene", "animations", "show_controls"]),
 });
 
 rcRegister(
@@ -958,7 +960,7 @@ class WaterHeaterMiniCard extends rcMini(
 const WaterHeaterMiniCardEditor = rcEditor({
   card: WaterHeaterMiniCard,
   helpers: WH_HELPERS,
-  schema: whSchema(["show_title", "illustration", "show_scene", "animations", "show_controls", "zoom"]),
+  schema: whSchema(["show_title", "show_subtitle", "illustration", "show_scene", "animations", "show_controls", "zoom"]),
 });
 
 rcRegister(
