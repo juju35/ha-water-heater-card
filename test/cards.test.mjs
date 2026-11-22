@@ -426,3 +426,100 @@ test("the roles are found again only when a state of the water heater's own devi
   card.hass = { ...h, states: { ...h.states, "sensor.explorer_power": st("sensor.explorer_power", "0", { device_class: "power", unit_of_measurement: "W" }) } };
   assert.notEqual(card._memo.find.value, found);
 });
+
+// Cost and heating (#107): the meters' long-term statistics and today's history, read through hass.callWS.
+const H = 3600 * 1000;
+const costHass = () => {
+  const now = new Date();
+  const month = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const before = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const h = makeHass();
+  h.ws = [];
+  h.callWS = async (msg) => {
+    h.ws.push(msg);
+    if (msg.type === "recorder/statistics_during_period")
+      return {
+        "sensor.tank_energy": [
+          { start: before, change: 4 },
+          { start: month, change: 2 },
+          { start: month + 24 * H, change: 1 },
+        ],
+        "sensor.hot_water": [
+          { start: before, change: 0.1 },
+          { start: month, change: 0.1 },
+          { start: month + 24 * H, change: 0 },
+        ],
+      };
+    const s = (state, t) => ({ s: state, lu: (midnight + t) / 1000 });
+    return {
+      "sensor.explorer_power": [s("0", 0), s("620", 2 * H), s("0", 3 * H), s("2000", 18 * H), s("0", 18.25 * H)],
+      "sensor.tariff": [s("Off-peak", 0), s("Peak", 6 * H)],
+    };
+  };
+  return h;
+};
+const COST = { ...HEATER, energy_meter: "sensor.tank_energy", water_meter: "sensor.hot_water", energy_price: 0.2, water_price: 4, tariff: "sensor.tariff" };
+
+test("cost: the m³ of hot water, its electricity and water, the standby days, against the period before", async () => {
+  const h = costHass();
+  const card = make("water-heater-card", COST, h);
+  await card._load;
+  const html = card.shadowRoot.innerHTML;
+  const stats = h.ws.find((m) => m.type === "recorder/statistics_during_period");
+  assert.deepEqual(json(stats.statistic_ids), ["sensor.tank_energy", "sensor.hot_water"]);
+  assert.equal(stats.period, "day");
+  assert.match(html, /€10\.00<\/b><span>per m³ of hot water/);
+  assert.match(html, /-17% vs previous/);
+  assert.match(html, /Electricity<\/span><\/span><span class="xv">€0\.60<\/span><span class="cx">3\.0 kWh/);
+  assert.match(html, /Hot water<\/span><\/span><span class="xv">€0\.40<\/span><span class="cx">0\.10 m³/);
+  assert.match(html, /Standby<\/span><\/span><span class="xv">€0\.20<\/span><span class="cx">1 day · 1\.0 kWh/);
+  assert.match(html, /class="per on" data-p="month"/);
+  // Another period: read again from its own start.
+  card._period = "day";
+  card._render();
+  await card._load;
+  const day = h.ws.filter((m) => m.type === "recorder/statistics_during_period").at(-1);
+  const now = new Date();
+  assert.equal(day.start_time, new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).toISOString());
+  // Not read again before WH_REFRESH.
+  const n = h.ws.length;
+  card.hass = { ...h };
+  assert.equal(h.ws.length, n);
+});
+
+test("heating strip: today's spans on the off-peak hours, the part at the peak rate in the alert colour", async () => {
+  const h = costHass();
+  const card = make("water-heater-card", COST, h);
+  await card._load;
+  const html = card.shadowRoot.innerHTML;
+  const hist = h.ws.find((m) => m.type === "history/history_during_period");
+  assert.deepEqual(json(hist.entity_ids), ["sensor.explorer_power", "sensor.tariff"]);
+  assert.match(html, /Today’s heating<\/span><span class="cxs">1 h 15 · 15 min at peak rate/);
+  assert.equal((html.match(/<i class="run"/g) || []).length, 2);
+  assert.equal((html.match(/<i class="pk"/g) || []).length, 1);
+  assert.equal((html.match(/<i class="hc"/g) || []).length, 1);
+  // Without a tariff nor a meter, no strip and no reading; show_cost / show_timeline: false hide them.
+  const plain = make("water-heater-card", HEATER, costHass());
+  assert.equal(plain._load, undefined);
+  const off = make("water-heater-card", { ...COST, show_cost: false, show_timeline: false }, costHass());
+  assert.equal(off._load, undefined);
+  assert.doesNotMatch(off.shadowRoot.innerHTML, /class="tl"|class="cpm"/);
+});
+
+test("cost helpers: periods, off-peak states, peak parts, tally without prices", () => {
+  const [w, pw] = wh.whPeriodStart("week", new Date(2026, 10, 22, 13));
+  assert.equal(w.getDate(), 16);
+  assert.equal(pw.getDate(), 9);
+  assert.equal(wh.whPeriodStart("week", new Date(2026, 10, 22, 13), false)[0].getDate(), 22);
+  assert.equal(wh.whPeriodStart("year", new Date(2026, 10, 22))[1].getFullYear(), 2025);
+  for (const s of ["HC", "Off-peak", "heures_creuses", "Heures Creuses"]) assert.ok(wh.whOffPeak("sensor.t", s), s);
+  for (const s of ["HP", "Peak", "heures_pleines"]) assert.ok(!wh.whOffPeak("sensor.t", s), s);
+  assert.ok(wh.whOffPeak("binary_sensor.hc", "on"));
+  assert.deepEqual(json(wh.whOutside([0, 10], [[2, 4], [8, 12]])), [[0, 2], [4, 8]]);
+  const t = wh.whTally([{ e: 2, w: 0.1 }], null, 4);
+  assert.equal(t.perM3, null, "no electricity price: no cost per m³");
+  assert.equal(t.wCost, 0.4);
+  const dyn = wh.whTally([{ e: 1, w: 0.1, pe: 0.3 }, { e: 1, w: 0.1 }], 0.2, 4);
+  assert.equal(Math.round(dyn.eCost * 100) / 100, 0.5, "each day at its own mean price, else the price now");
+});

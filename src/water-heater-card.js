@@ -250,6 +250,7 @@ const WH_SVG = {
   heat_pump: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="1.5"/><path d="M12 10.5V5M13.3 12.8l4.7 2.7M10.7 12.8L6 15.5"/>',
   drop: '<path d="M12 3c-3.5 4.5-6 7.6-6 10.5a6 6 0 0 0 12 0C18 10.6 15.5 7.5 12 3z"/>',
   relay: '<path d="M12 3v9M6.3 7a8 8 0 1 0 11.4 0"/>',
+  standby: '<circle cx="12" cy="12" r="9"/><path d="M10 9v6M14 9v6"/>',
 };
 // The icon of a mode, from its name.
 const whModeIcon = (mode) => {
@@ -266,7 +267,7 @@ const whModeIcon = (mode) => {
 class WaterHeaterCard extends RcCard {
   static tag = "water-heater-card";
   static i18n = WH_I18N;
-  static defaults = { illustration: true, illustration_theme: "auto", show_subtitle: true, show_scene: true, animations: true, show_controls: true };
+  static defaults = { illustration: true, illustration_theme: "auto", show_subtitle: true, show_scene: true, animations: true, show_controls: true, show_cost: true, show_timeline: true, cost_period: "month" };
 
   // The most likely water heater of the home.
   static getStubConfig(hass) {
@@ -274,8 +275,14 @@ class WaterHeaterCard extends RcCard {
     return entity ? { entity } : {};
   }
 
+  // A new configuration starts again on its own `cost_period`.
+  setConfig(config) {
+    this._period = undefined;
+    super.setConfig(config);
+  }
+
   getCardSize() {
-    return this._config?.show_scene === false ? 3 : 6;
+    return (this._config?.show_scene === false ? 3 : 6) + (this._costOn() ? 3 : 0) + (this._stripOn() ? 1 : 0);
   }
 
   _cols() {
@@ -602,7 +609,9 @@ class WaterHeaterCard extends RcCard {
     // card (and restart the bubbles and the fan).
     const banner = c.illustration !== false;
     const night = banner && this._night();
-    const parts = [m.none, m.raw, m.name, m.sub, status, scene, tiles, m.error, m.mode, m.modes, m.target, m.min, m.max, m.boostOn, m.relayOn, m.awayOn, m.awayAttr, m.awayId, m.boostId, dark, banner, night];
+    if (!m.none) this._refresh(m);
+    const prices = this._costOn() ? [this._price(c.energy_price, c.energy_price_entity), this._price(c.water_price, c.water_price_entity)] : null;
+    const parts = [m.none, m.raw, m.name, m.sub, status, scene, tiles, m.error, m.mode, m.modes, m.target, m.min, m.max, m.boostOn, m.relayOn, m.awayOn, m.awayAttr, m.awayId, m.boostId, dark, banner, night, this._periodNow(), this._loadSeq, prices];
     if (!this._changed(parts)) return;
     const head = banner
       ? this._banner(
@@ -639,9 +648,219 @@ class WaterHeaterCard extends RcCard {
     this._fitPill();
   }
 
+  // The cost section, with a meter; the heating strip, with the cost section or a tariff.
+  _costOn() {
+    const c = this._config || {};
+    return c.show_cost !== false && !!(c.energy_meter || c.water_meter);
+  }
+
+  _stripOn() {
+    const c = this._config || {};
+    return c.show_timeline !== false && !!(c.tariff || c.energy_meter || c.water_meter);
+  }
+
+  _periodNow() {
+    const p = this._period || this._config.cost_period;
+    return WH_PERIODS.includes(p) ? p : "month";
+  }
+
+  // A price: the number set, else its entity's state.
+  _price(num, id) {
+    if (num != null && num !== "" && Number.isFinite(Number(num))) return Number(num);
+    const s = id && this._hass.states[id];
+    return s && !rcUnavailable(s) ? whNum(s) : null;
+  }
+
+  // What tells the tank heats, for the strip: [entity, test of its state]. The heating sensor, else the power (above
+  // 50 W), else the relay.
+  _heatSource(m) {
+    const h = this._hass;
+    if (m.ids.heating && h.states[m.ids.heating]) return [m.ids.heating, (s) => s === "on"];
+    const pid = m.ids.power || (m.id?.startsWith("sensor.") ? m.id : null);
+    if (pid && h.states[pid]) {
+      const k = { kW: 1000, MW: 1e6 }[h.states[pid].attributes.unit_of_measurement] || 1;
+      return [pid, (s) => Number.parseFloat(s) * k > 50];
+    }
+    return m.relayId ? [m.relayId, (s) => s === "on"] : null;
+  }
+
+  // The statistics and the history, read again when stale (WH_REFRESH), or for a new period, day or configuration.
+  // Once read, the card is drawn again (`_loadSeq` changes its signature).
+  _refresh(m) {
+    const h = this._hass;
+    if (typeof h.callWS !== "function" || (!this._costOn() && !this._stripOn())) return;
+    const c = this._config;
+    const now = new Date();
+    const src = this._stripOn() ? this._heatSource(m) : null;
+    const key = JSON.stringify([this._periodNow(), now.toDateString(), c.energy_meter, c.water_meter, c.energy_price, c.energy_price_entity, c.water_price, c.water_price_entity, c.tariff, src?.[0]]);
+    if (this._loading || (key === this._loadKey && Date.now() - this._loadedAt < WH_REFRESH)) return;
+    this._loading = true;
+    this._loadKey = key;
+    this._load = Promise.all([this._loadCost(now), this._loadStrip(now, src)])
+      .then(([cost, strip]) => {
+        this._cost = cost;
+        this._strip = strip;
+      })
+      .catch(() => {})
+      .finally(() => {
+        this._loading = false;
+        this._loadedAt = Date.now();
+        this._loadSeq = (this._loadSeq || 0) + 1;
+        this._render();
+      });
+  }
+
+  // The meters' daily changes (kWh, m³) and the prices' daily means, over this period and the one before.
+  async _loadCost(now) {
+    if (!this._costOn()) return null;
+    const c = this._config;
+    const h = this._hass;
+    const period = this._periodNow();
+    const [start, prev] = whPeriodStart(period, now, h.locale?.first_weekday !== "sunday");
+    const pe = c.energy_price == null ? c.energy_price_entity : null;
+    const pw = c.water_price == null ? c.water_price_entity : null;
+    const res = await h.callWS({
+      type: "recorder/statistics_during_period",
+      start_time: prev.toISOString(),
+      end_time: now.toISOString(),
+      statistic_ids: [c.energy_meter, c.water_meter, pe, pw].filter(Boolean),
+      period: "day",
+      types: ["change", "mean"],
+      units: { energy: "kWh", volume: "m³" },
+    });
+    const days = new Map();
+    const put = (id, field, type) => {
+      for (const r of (id && res?.[id]) || []) {
+        const t = typeof r.start === "number" ? r.start : Date.parse(r.start);
+        const row = days.get(t) || { t };
+        if (Number.isFinite(r[type])) row[field] = r[type];
+        days.set(t, row);
+      }
+    };
+    put(c.energy_meter, "e", "change");
+    put(c.water_meter, "w", "change");
+    put(pe, "pe", "mean");
+    put(pw, "pw", "mean");
+    const rows = [...days.values()];
+    return { period, cur: rows.filter((r) => r.t >= start.getTime()), prev: rows.filter((r) => r.t < start.getTime()) };
+  }
+
+  // Today's heating spans and off-peak spans (ms), from midnight.
+  async _loadStrip(now, src) {
+    if (!src) return null;
+    const c = this._config;
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const res = await this._hass.callWS({
+      type: "history/history_during_period",
+      start_time: new Date(start).toISOString(),
+      end_time: now.toISOString(),
+      entity_ids: [src[0], c.tariff].filter(Boolean),
+      minimal_response: true,
+      no_attributes: true,
+      significant_changes_only: false,
+    });
+    const clip = (spans) => spans.map(([a, b]) => [Math.max(a, start), b]).filter(([a, b]) => b > a);
+    const end = now.getTime();
+    return {
+      start,
+      runs: clip(whSpans(res?.[src[0]], src[1], end)),
+      off: c.tariff ? clip(whSpans(res?.[c.tariff], (s) => whOffPeak(c.tariff, s), end)) : null,
+    };
+  }
+
+  _money(v) {
+    const h = this._hass;
+    const currency = this._config.currency || h.config?.currency || "EUR";
+    const digits = Math.abs(v) >= 1000 ? 0 : 2;
+    try {
+      return whIntl(Intl.NumberFormat, this._lang(), { style: "currency", currency, minimumFractionDigits: digits, maximumFractionDigits: digits }).format(v);
+    } catch {
+      return `${v.toFixed(digits)} ${currency}`;
+    }
+  }
+
+  _dur(ms) {
+    const n = Math.round(ms / 60000);
+    return n < 60 ? this._t("dur_min", { n }) : this._t("dur_h", { h: Math.floor(n / 60), m: String(n % 60).padStart(2, "0") });
+  }
+
+  _ctile(cls, icon, label, value, unit, sub) {
+    return `<div class="xt ${cls}"><span class="xh">${whIcon(WH_SVG[icon])}<span class="xl">${rcEsc(this._t(label))}</span></span><span class="xv">${rcEsc(value)}${unit ? `<small>${rcEsc(unit)}</small>` : ""}</span>${sub ? `<span class="cx">${rcEsc(sub)}</span>` : ""}</div>`;
+  }
+
+  // The cost: the period's tabs, the cost of a m³ of hot water against the period before, then its electricity, its
+  // water and the standby days (the energy that only kept the water hot).
+  _costHtml() {
+    if (!this._costOn()) return "";
+    const c = this._config;
+    const p = this._periodNow();
+    const tabs = WH_PERIODS.map((x) => `<button class="per${x === p ? " on" : ""}" data-p="${x}" data-k="per-${x}" aria-pressed="${x === p}">${rcEsc(this._t(`p_${x}`))}</button>`).join("");
+    const head = `<div class="csh"><span class="cst">${rcEsc(this._t("cost"))}</span><span class="mseg pseg" role="group" aria-label="${rcEsc(this._t("cost"))}">${tabs}</span></div>`;
+    const d = this._cost;
+    if (!d || d.period !== p) return `${head}<div class="none cwait">…</div>`;
+    const pe = this._price(c.energy_price, c.energy_price_entity);
+    const pw = this._price(c.water_price, c.water_price_entity);
+    const cur = whTally(d.cur, pe, pw);
+    if (!cur.days) return `${head}<div class="none">${rcEsc(this._t("no_data"))}</div>`;
+    const prev = whTally(d.prev, pe, pw);
+    let big = "";
+    if (cur.perM3 != null) {
+      const delta = prev.perM3 ? (cur.perM3 - prev.perM3) / prev.perM3 : null;
+      const pct = delta != null && Math.abs(delta) >= 0.005 ? whIntl(Intl.NumberFormat, this._lang(), { style: "percent", maximumFractionDigits: 0, signDisplay: "exceptZero" }).format(delta) : null;
+      const dl = pct ? `<span class="cpd ${delta < 0 ? "dn" : "up"}">${rcEsc(this._t("vs_prev", { n: pct }))}</span>` : "";
+      big = `<div class="cpm"><b>${rcEsc(this._money(cur.perM3))}</b><span>${rcEsc(this._t("per_m3"))}</span>${dl}</div>`;
+    }
+    const kwh = (v) => this._fmt(v, v >= 100 ? 0 : 1);
+    const m3 = (v) => this._fmt(v, v >= 100 ? 0 : v >= 10 ? 1 : 2);
+    const tiles = [
+      c.energy_meter && (pe != null ? this._ctile("ce", "power", "t_electricity", this._money(cur.eCost), "", `${kwh(cur.kwh)} kWh`) : this._ctile("ce", "power", "t_electricity", kwh(cur.kwh), "kWh")),
+      c.water_meter && (pw != null ? this._ctile("cw", "drop", "t_hot_water", this._money(cur.wCost), "", `${m3(cur.m3)} m³`) : this._ctile("cw", "drop", "t_hot_water", m3(cur.m3), "m³")),
+      c.energy_meter &&
+        c.water_meter &&
+        this._ctile("cs", "standby", "t_standby", pe != null ? this._money(cur.standbyCost) : kwh(cur.standbyKwh), pe != null ? "" : "kWh", `${this._tn("day", cur.standbyDays)}${pe != null ? ` · ${kwh(cur.standbyKwh)} kWh` : ""}`),
+    ].filter(Boolean);
+    return `${head}${big}<div class="cgrid">${tiles.join("")}</div>`;
+  }
+
+  // Today's heating on a 24 h strip: the off-peak hours behind, each heating span on them, the part at the peak rate
+  // in the alert colour.
+  _stripHtml() {
+    const s = this._stripOn() && this._strip;
+    if (!s) return "";
+    const day = new Date(s.start);
+    const len = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1).getTime() - s.start;
+    const at = (t) => Math.min(100, Math.max(0, ((t - s.start) / len) * 100));
+    const bar = (cls, [a, b]) => `<i class="${cls}" style="left:${at(a).toFixed(2)}%;width:${(at(b) - at(a)).toFixed(2)}%"></i>`;
+    const peaks = s.off ? s.runs.flatMap((r) => whOutside(r, s.off)) : [];
+    const total = s.runs.reduce((n, [a, b]) => n + b - a, 0);
+    const peak = peaks.reduce((n, [a, b]) => n + b - a, 0);
+    const summary = [this._dur(total), peak >= 60000 && this._t("peak_time", { d: this._dur(peak) })].filter(Boolean).join(" · ");
+    const hour = (x) => {
+      try {
+        return whIntl(Intl.DateTimeFormat, this._lang(), { hour: "numeric" }).format(new Date(day.getFullYear(), day.getMonth(), day.getDate(), x));
+      } catch {
+        return `${x}h`;
+      }
+    };
+    const ticks = [0, 6, 12, 18].map((x) => `<span style="left:${(x / 24) * 100}%">${rcEsc(hour(x))}</span>`).join("");
+    const legend = [s.off && ["off", "lg_off_peak"], ["run", "lg_heating"], peak >= 60000 && ["pk", "lg_peak"]]
+      .filter(Boolean)
+      .map(([k, l]) => `<span class="${k}">${rcEsc(this._t(l))}</span>`)
+      .join("");
+    const label = `${this._t("heating_today")}: ${summary}`;
+    return `<div class="csh"><span class="cst">${rcEsc(this._t("heating_today"))}</span><span class="cxs">${rcEsc(summary)}</span></div>
+      <div class="tl" role="img" aria-label="${rcEsc(label)}">${(s.off || []).map((x) => bar("hc", x)).join("")}${s.runs.map((x) => bar("run", x)).join("")}${peaks.map((x) => bar("pk", x)).join("")}</div>
+      <div class="tk" aria-hidden="true">${ticks}</div><div class="lg" aria-hidden="true">${legend}</div>`;
+  }
+
   _afterGrid() {
     const m = this._items;
-    if (!m || m.none || this._config.show_controls === false || m.state === "offline") return "";
+    if (!m || m.none) return "";
+    return this._controls(m) + this._costHtml() + this._stripHtml();
+  }
+
+  _controls(m) {
+    if (this._config.show_controls === false || m.state === "offline") return "";
     const modes =
       m.modes.length > 1
         ? `<span class="mseg" role="group" aria-label="${rcEsc(this._t("t_mode"))}">${m.modes
@@ -674,6 +893,17 @@ class WaterHeaterCard extends RcCard {
         fn(ev);
       });
     root.querySelector(".sc")?.addEventListener("click", () => rcMoreInfo(this, m.id));
+    // The cost's period: shown at once, its statistics read in the background.
+    for (const b of root.querySelectorAll(".per") || []) {
+      b.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const p = b.dataset?.p ?? b.getAttribute?.("data-p");
+        if (p && p !== this._periodNow()) {
+          this._period = p;
+          this._render();
+        }
+      });
+    }
     for (const b of root.querySelectorAll(".md") || []) {
       b.addEventListener("click", (ev) => {
         ev.stopPropagation();
@@ -853,6 +1083,47 @@ class WaterHeaterCard extends RcCard {
     .sl2 { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 13px; min-width: 0; }
     .sn { color: var(--secondary-text-color); }
     .nt { font-weight: 500; color: color-mix(in srgb, var(--c) 50%, var(--primary-text-color, #212121)); overflow-wrap: anywhere; }
+    /* Cost and heating (#107): a section title and its period tabs, the cost of a m³ of hot water, three tiles, then
+       today's heating on a 24 h strip with the off-peak hours behind. */
+    .csh { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 8px; margin-top: 14px; }
+    .cst { font-size: 14px; font-weight: 500; color: var(--primary-text-color); }
+    .cxs { font-size: 12px; color: var(--secondary-text-color); }
+    .pseg button { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; min-height: 36px; padding: 0 11px;
+                   border-radius: 999px; font-size: 13px; font-weight: 500; color: var(--primary-text-color); }
+    .pseg button:hover:not(.on) { background: color-mix(in srgb, var(--c) 10%, transparent); }
+    .pseg button.on { color: color-mix(in srgb, var(--c) 50%, var(--primary-text-color, #212121)); background: color-mix(in srgb, var(--c) 16%, transparent); }
+    .pseg button:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+    .cwait { text-align: center; }
+    .cpm { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 10px; margin-top: 10px; padding: 10px 12px; border-radius: 12px;
+           background: var(--secondary-background-color, rgba(127,127,127,.08)); }
+    .cpm b { font-size: 26px; font-weight: 500; line-height: 1.15; color: var(--primary-text-color); white-space: nowrap; }
+    .cpm span { font-size: 13px; color: var(--secondary-text-color); }
+    .cpm .cpd { margin-left: auto; font-size: 12px; font-weight: 500; }
+    .cpm .cpd.dn { color: color-mix(in srgb, var(--rc-ok) 70%, var(--primary-text-color, #212121)); }
+    .cpm .cpd.up { color: color-mix(in srgb, var(--wh-heating) 65%, var(--primary-text-color, #212121)); }
+    .cgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+    .cgrid .ce .xh { color: var(--wh-heating); }
+    .cgrid .cw .xh { color: var(--wh-water); }
+    .cgrid .cs .xh { color: var(--rc-idle); }
+    .cx { font-size: 12px; color: var(--secondary-text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    :host { --wh-water: #3b7fd4; --wh-off-peak: #4c6ef5; }
+    .tl { position: relative; height: 30px; margin-top: 8px; border-radius: 8px; overflow: hidden; background: var(--secondary-background-color, rgba(127,127,127,.08)); }
+    .tl i { position: absolute; top: 0; bottom: 0; }
+    .tl .hc { background: color-mix(in srgb, var(--wh-off-peak) 18%, transparent); }
+    .tl .run, .tl .pk { top: 7px; bottom: 7px; min-width: 3px; border-radius: 4px; background: var(--wh-heating); }
+    .tl .pk { background: var(--rc-alert); }
+    .tk { position: relative; height: 15px; margin-top: 3px; font-size: 11px; color: var(--secondary-text-color); }
+    .tk span { position: absolute; top: 0; white-space: nowrap; }
+    .tk span + span { transform: translateX(-50%); }
+    .lg { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 2px; font-size: 12px; color: var(--secondary-text-color); }
+    .lg span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+    .lg .off::before { background: color-mix(in srgb, var(--wh-off-peak) 40%, transparent); }
+    .lg .run::before { background: var(--wh-heating); }
+    .lg .pk::before { background: var(--rc-alert); }
+    @container (max-width: 300px) {
+      .cgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .cgrid > :nth-child(3):last-child { grid-column: 1 / -1; }
+    }
   `;
 }
 
@@ -867,13 +1138,31 @@ const whSchema = (booleans) => (lang) => [
   { name: "tariff", selector: { entity: {} } },
   ...rcBooleans(...booleans),
   {
+    name: "cost",
+    type: "expandable",
+    flatten: true,
+    schema: [
+      { name: "energy_meter", selector: { entity: { domain: "sensor", device_class: "energy" } } },
+      { name: "water_meter", selector: { entity: { domain: "sensor", device_class: "water" } } },
+      { name: "energy_price", selector: { number: { min: 0, step: 0.0001, mode: "box" } } },
+      { name: "energy_price_entity", selector: { entity: {} } },
+      { name: "water_price", selector: { number: { min: 0, step: 0.01, mode: "box" } } },
+      { name: "water_price_entity", selector: { entity: {} } },
+      {
+        name: "cost_period",
+        selector: { select: { mode: "dropdown", options: WH_PERIODS.map((value) => ({ value, label: rcT(WH_I18N, lang, `p_${value}`) })) } },
+      },
+      ...rcBooleans("show_cost", "show_timeline"),
+    ],
+  },
+  {
     name: "illustration_theme",
     selector: { select: { mode: "dropdown", options: ["auto", "day", "night"].map((value) => ({ value, label: rcT(WH_I18N, lang, `ed_theme_${value}`) })) } },
   },
   ...rcAdvanced(WH_I18N, lang, "entities", "language"),
 ];
 
-const WH_HELPERS = ["entity", "title", "temperature", "capacity", "shower_volume", "tariff", "zoom", "entities", "language"];
+const WH_HELPERS = ["entity", "title", "temperature", "capacity", "shower_volume", "tariff", "energy_meter", "water_meter", "energy_price", "water_price", "show_timeline", "zoom", "entities", "language"];
 
 const WaterHeaterCardEditor = rcEditor({
   card: WaterHeaterCard,

@@ -55,6 +55,8 @@ The cards share the look of the other ha-* cards (header with a status pill, tin
 - **Illustrated header**: a 90 px banner, the tank drawn big in a utility corner (tiled wall, hot and cold pipes — the hot one pulses while it heats —, a shelf, the washing machine) on a concrete floor strip; the name and the state with the temperature (*Heating · 54 °C*) on the wall at the left, beside a round badge whose icon takes the state's colour (orange heating, green ready, pink boost, grey away / off, red error). By night (with a dark Home Assistant theme; `illustration_theme: day | night` forces it) the room is dark; the solar panel's sun or moon keeps following the real sun. Under it, the panel's readings: showers left, litres at 40 °C and the note. `illustration: false` brings back the classic header (name, room and model, a state pill) and the big illustration below it
 - **Three tiles**, the ones that matter in each state among what the water heater reports: power, energy (today's when the sensor is a daily one; with a grid / solar split, the total and the solar share — *Today 2.4 kWh · 35% solar*), mode, `tariff` (off-peak / peak), the cold water's temperature, the end of an absence
 - **Controls**: the water heater's **modes** (its own list, *off* and *away* aside, up to four), **Boost** when it is a switch rather than a mode, **Away** / **Back home** (the away mode, or an away switch), the **target** in steps of the water heater (− 55 °C +, within its range); **Heat now** / **Stop** for a cumulus on a relay (none for a PV-routed tank: the router decides)
+- **Cost** ([#107](https://github.com/juju35/ha-water-heater-card/issues/107)), with the tank's own electricity meter (`energy_meter`) and a hot water meter (`water_meter`): **Day / Week / Month / Year** tabs, the **cost of a m³ of hot water** (its electricity and its cold water, over the water drawn) against the period before, then three tiles — **electricity** (cost and kWh), **hot water** (cost and m³) and **standby** (the days with no hot water drawn: the energy that only kept the water hot). Prices are fixed (`energy_price`, `water_price`) or read from an entity (`energy_price_entity`, `water_price_entity`): a dynamic price counts each day at its daily mean. Read from Home Assistant's long-term statistics, every 5 minutes
+- **Today's heating**: a 24 h strip with the tariff's **off-peak hours** behind and each heating span on them (from the heating sensor, else the power above 50 W, else the relay); a span at the **peak rate** is in red, with the run time and the time at the peak rate (*2 h 50 · 15 min at peak rate*) — to check that the tank heats at off-peak. Shown with `tariff`, `energy_meter` or `water_meter`
 - A tap on the illustration opens the water heater's dialog
 - `show_scene: false` keeps the header, tiles and controls; `animations: false` stops the bubbles, the glow and the fan (also when the system asks for reduced motion); `show_controls: false` leaves the card read-only
 
@@ -78,6 +80,7 @@ Any integration with a `water_heater` entity works: the card reads its mode, tem
 | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/images/panasonic.svg" alt="Panasonic" height="21">&nbsp;<img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/images/stiebel-eltron.svg" alt="Stiebel Eltron" height="13">&nbsp;<img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/images/bosch.svg" alt="Bosch" height="21"> | Panasonic Aquarea, Stiebel Eltron, Bosch and other `water_heater` integrations | Their water heaters |
 |  | A smart plug or a relay (Shelly, Sonoff, Zigbee…) | A plain cumulus: set its switch as `entity`, its probe as `temperature` |
 |  | A PV router (Mk2PVRouter, MSunPV, F1ATB…) and a meter on the tank's line (Shelly EM, Modbus, the router's own) | A PV-routed cumulus: set its power sensor as `entity` (read-only), the grid and solar energy as `energy_grid` / `energy_solar` |
+|  | An energy meter on the tank's line (Shelly EM, Zigbee or Modbus meter…) and a hot water meter (pulse or ultrasonic, Zigbee, ESPHome…), with long-term statistics | The cost of hot water: set them as `energy_meter` / `water_meter` with the prices |
 
 When the card picks the wrong entity for a role, or misses one, set it in `entities` (see [Configuration](#configuration)) and open an issue with the water heater's entities so that the discovery learns it.
 
@@ -130,6 +133,16 @@ entities:
   energy_grid: sensor.water_heater_grid_energy_today
   energy_solar: sensor.water_heater_solar_energy_today
 
+# Cost of hot water and today's heating: dedicated meters, fixed or dynamic prices, the off-peak sensor
+type: custom:water-heater-card
+entity: water_heater.explorer
+energy_meter: sensor.water_heater_energy
+water_meter: sensor.hot_water_meter
+energy_price_entity: sensor.electricity_price
+water_price: 4.2
+tariff: sensor.linky_tariff
+cost_period: month
+
 # Two lines on a phone dashboard
 type: custom:water-heater-mini-card
 entity: water_heater.explorer
@@ -153,7 +166,17 @@ entities:
 | `temperature` | string | the water heater's | The water's temperature sensor (a cumulus on a relay, or another probe) |
 | `capacity` | number | `200` | The tank's volume (L), to estimate the hot water when the integration does not report it |
 | `shower_volume` | number | `50` | Litres at 40 °C per shower |
-| `tariff` | string | | An off-peak / peak sensor, shown in a tile |
+| `tariff` | string | | An off-peak / peak sensor, shown in a tile and behind the heating strip (off-peak: `on` for a binary sensor, else a state named *HC*, *off-peak*, *heures creuses*, *low*, *night*…) |
+| `energy_meter` | string | | Both: the tank's own electricity meter (kWh, `total_increasing` with long-term statistics) — turns on the cost section |
+| `water_meter` | string | | Both: the hot water meter (m³ or L, `total_increasing` with long-term statistics) — turns on the cost section |
+| `energy_price` | number | | Both: the electricity price per kWh |
+| `energy_price_entity` | string | | Both: an entity holding the electricity price per kWh (dynamic: each day at its daily mean when it has statistics), when `energy_price` is not set |
+| `water_price` | number | | Both: the cold water price per m³ |
+| `water_price_entity` | string | | Both: an entity holding the water price per m³, when `water_price` is not set |
+| `currency` | string | Home Assistant's | Advanced (YAML only): the currency of the prices (`EUR`, `CHF`…) |
+| `cost_period` | string | `month` | Both: the period shown first — `day`, `week`, `month` or `year` |
+| `show_cost` | boolean | `true` | Both: the cost section (with a meter) |
+| `show_timeline` | boolean | `true` | Both: today's heating strip (with `tariff` or a meter) |
 | `illustration` | boolean | `true` | Both: the illustrated header (`false`: the classic header) |
 | `illustration_theme` | string | `auto` | Both: `auto` (follows the Home Assistant theme: night with a dark theme, day with a light theme), `day` or `night` |
 | `show_scene` | boolean | `true` | The illustration (under the banner: its readings panel) |
@@ -180,6 +203,12 @@ entities:
 | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-pv.png" alt="PV-routed cumulus" width="400"> | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-pv-night.png" alt="PV-routed cumulus by night" width="400"> | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-compact.png" alt="Without the illustration" width="400"> |
 | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-pv-dark.png" alt="PV-routed cumulus, dark" width="400"> | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-pv-night-dark.png" alt="PV-routed cumulus by night, dark" width="400"> | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-compact-dark.png" alt="Without the illustration, dark" width="400"> |
 
+**Cost and today's heating** (`energy_meter`, `water_meter`, prices and `tariff`): the cost of a m³ of hot water, its electricity, water and standby, and the heating strip with a run at the peak rate.
+
+| Light | Dark |
+|---|---|
+| <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-cost.png" alt="Cost and today's heating" width="400"> | <img src="https://raw.githubusercontent.com/juju35/ha-water-heater-card/main/screenshots/wh-cost-dark.png" alt="Cost and today's heating, dark" width="400"> |
+
 **Heating animation**: bubbles rise from the element, which glows, and the heat pump's fan turns (still with `animations: false`, or when the system asks for reduced motion).
 
 | Light | Dark |
@@ -205,6 +234,8 @@ entities:
 - **Roles**, on the water heater's device: `temperature` (a `temperature` sensor, not an outdoor or cold one), `inlet` (the cold water's), `level` (hot water in %), `litres` (a sensor in L, hot water at 40 °C), `showers`, `power`, `energy` (a daily one first), `energy_grid` and `energy_solar` (today's energy from the grid and from the solar surplus, by name: *grid* / *réseau*, *solar* / *solaire* / *PV*; together they replace `energy`), `heating` (a binary sensor: element, compressor, running), `boost` and `away` (switches), `away_end` (a timestamp or a datetime), `error` (a sensor named *error* / *fault*, or a `problem` binary sensor); `entities` sets any of them
 - **Hot water at 40 °C**, when not reported: capacity × (T − cold) / (40 − cold) above 40 °C, none at 40 °C or less; the share of hot water: that volume against the tank at its target. The cold water is its sensor (a *bottom* probe is hot water, not the inlet), else 15 °C, and 15 °C when it reads 35 °C or more
 - **Temperature**: diagnostic sensors (a smart plug's own temperature) are never the water's
+- **Cost**: `recorder/statistics_during_period` by day over this period and the one before — the meters' `change` (kWh, m³) and the price entities' `mean`; a day is a standby day when less than 1 L of hot water was drawn and the tank used energy. The cost of a m³: (electricity cost + water cost) / m³ drawn, shown when both meters and both prices are known
+- **Heating strip**: `history/history_during_period` since midnight for the heating source and `tariff`; the parts of a run outside every off-peak span are at the peak rate
 - **Actions**: `water_heater.set_operation_mode`, `water_heater.set_away_mode` (or the away switch), `water_heater.set_temperature` within the water heater's range and step, the boost switch, and `turn_on` / `turn_off` on a relay (never on a sensor); nothing else
 
 ## Development

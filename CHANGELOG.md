@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.0 - 2026-11-22
+
+### Features
+- **Cost of hot water** ([#107](https://github.com/juju35/ha-water-heater-card/issues/107)): with the tank's own electricity meter (`energy_meter`) and a hot water meter (`water_meter`), a **Cost** section with **Day / Week / Month / Year** tabs (`cost_period`, `month` by default): the cost of a m³ of hot water (its electricity and its cold water, over the water drawn) against the period before, then the **electricity** (cost and kWh), the **hot water** (cost and m³) and the **standby** (the days with no hot water drawn, whose energy only kept the water hot). Prices are fixed (`energy_price`, `water_price`) or read from an entity (`energy_price_entity`, `water_price_entity`: a dynamic price counts each day at its daily mean); `currency` (YAML) overrides Home Assistant's. Read from the long-term statistics, every 5 minutes.
+- **Today's heating**: a 24 h strip with the `tariff`'s off-peak hours behind and each heating span on them (heating sensor, else power above 50 W, else the relay), the part at the peak rate in red, with the run time and the time at the peak rate — to check that the tank heats at off-peak. Shown with `tariff` or a meter; `show_cost: false` / `show_timeline: false` hide either. Every new option is in the visual editor of both cards, in a folded **Cost and heating** section.
+
 ## 1.3.0 - 2026-11-20
 
 ### Features

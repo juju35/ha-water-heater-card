@@ -88,7 +88,7 @@ export const load = () => {
   const code = [read("shared"), ...cards.map((c) => `{\n${read(c)}}\n`)].join("\n");
   return vm.runInContext(
     `${code}
-    ({ RcCard, RC_I18N, WH_I18N, rcLang, whFind, whHeaters, whHotWater, customElements, window,
+    ({ RcCard, RC_I18N, WH_I18N, rcLang, whFind, whHeaters, whHotWater, whPeriodStart, whOffPeak, whOutside, whTally, customElements, window,
        cards: Object.fromEntries(${JSON.stringify([...cards, "water-heater-mini-card"])}.map((t) => [t, customElements.get(t)])) })`,
     ctx,
   );
