@@ -2,12 +2,12 @@
 // registration), and every method is called somewhere. shared.js came from the room cards; what this card does not
 // use is left out, so the bundle carries only the water heater's code.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { parse } from "acorn";
+import { readSrc } from "./source.mjs";
 
 const FILES = ["shared", "water-heater-card"].map((f) => new URL(`../src/${f}.js`, import.meta.url));
-const sources = FILES.map((f) => readFileSync(f, "utf8"));
+const sources = FILES.map((f) => readSrc(f));
 const asts = sources.map((s) => parse(s, { ecmaVersion: "latest", sourceType: "script" }));
 
 // Every identifier under `node`.
