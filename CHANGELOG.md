@@ -1,9 +1,14 @@
 # Changelog
 
-## 1.4.3 - 2026-11-23
+## 1.4.4 - 2026-11-24
 
 ### Fixes
 - **Heating strip**: on a PV-routed tank (grid and solar energy meters), the heating outside the off-peak hours that only the solar meter counted is drawn in the theme's success green (`--wh-solar-heat`, free energy) and labelled *Solar* (*1 h 15 · 15 min on solar*), instead of *Peak rate*. Heating the grid meter counted too, or that no meter counted, stays at the peak rate.
+
+## 1.4.3 - 2026-11-24
+
+### Maintenance
+- The card source is split into ES modules: `src/shared/` (entry `src/shared/index.js`), `src/water-heater-card/` (entry `src/water-heater-card/index.js`), cut at its sections, with the translations in one file per language (`i18n/<lang>.js`). `scripts/bundle.mjs` concatenates them back, in their original order, into the same single file and per-language files as before; the tests evaluate that bundle.
 
 ## 1.4.2 - 2026-11-22
 
