@@ -99,6 +99,8 @@ export default {
     lg_off_peak: "Zemais tarifs",
     lg_heating: "Uzsildīšana",
     lg_peak: "Maksimuma tarifs",
+    lg_solar: "Saules",
+    solar_time: "{d} no saules enerģijas",
     ed_cost: "Izmaksas un uzsildīšana",
     ed_energy_meter: "Elektrības skaitītājs",
     ed_energy_meter_helper: "Boilera paša enerģijas skaitītājs (kWh, ar ilgtermiņa statistiku)",

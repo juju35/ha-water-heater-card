@@ -101,6 +101,8 @@ export default {
     lg_off_peak: "Nízký tarif",
     lg_heating: "Ohřev",
     lg_peak: "Vysoký tarif",
+    lg_solar: "Solární",
+    solar_time: "{d} ze solární energie",
     ed_cost: "Náklady a ohřev",
     ed_energy_meter: "Elektroměr",
     ed_energy_meter_helper: "Vlastní měřič energie zásobníku (kWh, s dlouhodobými statistikami)",

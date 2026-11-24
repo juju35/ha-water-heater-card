@@ -99,6 +99,8 @@ export default {
     lg_off_peak: "Niedertarif",
     lg_heating: "Heizen",
     lg_peak: "Hochtarif",
+    lg_solar: "Solar",
+    solar_time: "{d} mit Solarstrom",
     ed_cost: "Kosten und Heizen",
     ed_energy_meter: "Stromzähler",
     ed_energy_meter_helper: "Der eigene Energiezähler des Speichers (kWh, mit Langzeitstatistik)",

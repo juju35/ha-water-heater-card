@@ -99,6 +99,8 @@ export default {
     lg_off_peak: "Нощна тарифа",
     lg_heating: "Загряване",
     lg_peak: "Дневна тарифа",
+    lg_solar: "Слънчева",
+    solar_time: "{d} от слънчева енергия",
     ed_cost: "Разход и загряване",
     ed_energy_meter: "Електромер",
     ed_energy_meter_helper: "Собственият енергиен брояч на бойлера (kWh, с дългосрочна статистика)",

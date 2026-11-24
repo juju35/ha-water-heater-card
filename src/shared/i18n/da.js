@@ -99,6 +99,8 @@ export default {
     lg_off_peak: "Lavlast",
     lg_heating: "Opvarmning",
     lg_peak: "Spidslast",
+    lg_solar: "Sol",
+    solar_time: "{d} på solenergi",
     ed_cost: "Omkostning og opvarmning",
     ed_energy_meter: "Elmåler",
     ed_energy_meter_helper: "Beholderens egen energimåler (kWh, med langtidsstatistik)",

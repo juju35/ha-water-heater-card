@@ -99,6 +99,8 @@ export default {
     lg_off_peak: "Fascia fuori punta",
     lg_heating: "Riscaldamento",
     lg_peak: "Fascia di punta",
+    lg_solar: "Solare",
+    solar_time: "{d} da fotovoltaico",
     ed_cost: "Costo e riscaldamento",
     ed_energy_meter: "Contatore elettrico",
     ed_energy_meter_helper: "Il contatore di energia dello scaldabagno (kWh, con statistiche a lungo termine)",

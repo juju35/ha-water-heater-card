@@ -99,6 +99,8 @@ export default {
     lg_off_peak: "Völgyidő",
     lg_heating: "Fűtés",
     lg_peak: "Csúcsidő",
+    lg_solar: "Napenergia",
+    solar_time: "{d} napenergiával",
     ed_cost: "Költség és fűtés",
     ed_energy_meter: "Villanyóra",
     ed_energy_meter_helper: "A tároló saját energiamérője (kWh, hosszú távú statisztikával)",

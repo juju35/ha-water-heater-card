@@ -99,6 +99,8 @@ export default {
     lg_off_peak: "Μειωμένο τιμολόγιο",
     lg_heating: "Θέρμανση",
     lg_peak: "Ώρες αιχμής",
+    lg_solar: "Ηλιακή",
+    solar_time: "{d} από ηλιακή ενέργεια",
     ed_cost: "Κόστος και θέρμανση",
     ed_energy_meter: "Μετρητής ρεύματος",
     ed_energy_meter_helper: "Ο δικός μετρητής ενέργειας του θερμοσίφωνα (kWh, με μακροπρόθεσμα στατιστικά)",

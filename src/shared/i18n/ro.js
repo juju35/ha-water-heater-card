@@ -101,6 +101,8 @@ export default {
     lg_off_peak: "Tarif redus",
     lg_heating: "Încălzire",
     lg_peak: "Tarif de vârf",
+    lg_solar: "Solar",
+    solar_time: "{d} din energie solară",
     ed_cost: "Cost și încălzire",
     ed_energy_meter: "Contor electric",
     ed_energy_meter_helper: "Contorul de energie propriu al boilerului (kWh, cu statistici pe termen lung)",

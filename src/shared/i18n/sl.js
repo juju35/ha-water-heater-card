@@ -101,6 +101,8 @@ export default {
     lg_off_peak: "Nižja tarifa",
     lg_heating: "Gretje",
     lg_peak: "Višja tarifa",
+    lg_solar: "Sončna",
+    solar_time: "{d} s sončno energijo",
     ed_cost: "Strošek in gretje",
     ed_energy_meter: "Števec elektrike",
     ed_energy_meter_helper: "Lastni števec energije bojlerja (kWh, z dolgoročno statistiko)",

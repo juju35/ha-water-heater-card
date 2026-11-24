@@ -6,6 +6,8 @@ import { whNorm } from "./water-heater.js";
 export const WH_PERIODS = ["day", "week", "month", "year"];
 // How often the statistics and the history are read again (ms).
 export const WH_REFRESH = 5 * 60 * 1000;
+// How long after a heating span a meter can still count its energy: it is read a little after the power.
+export const WH_METER_LAG = 2 * 60 * 1000;
 // A day with less hot water than this (m³, 1 L) is a standby day: its energy only kept the water hot.
 export const WH_STANDBY_M3 = 0.001;
 
@@ -44,6 +46,17 @@ export const whSpans = (rows, test, end) => {
 };
 
 // The parts of span `[a, b]` outside every span of `cover`.
+// A meter's value at time t (ms), from its history rows: the last numeric state at or before t, else null.
+export const whValueAt = (rows, t) => {
+  let v = null;
+  for (const r of rows || []) {
+    if ((r.lu ?? r.lc) * 1000 > t) break;
+    const x = Number.parseFloat(r.s);
+    if (Number.isFinite(x)) v = x;
+  }
+  return v;
+};
+
 export const whOutside = ([a, b], cover) => {
   let parts = [[a, b]];
   for (const [c, d] of cover)

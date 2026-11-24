@@ -430,11 +430,13 @@ export class WaterHeaterCard extends RcCard {
     const c = this._config;
     const now = new Date();
     const src = this._stripOn() ? this._heatSource(m) : null;
-    const key = JSON.stringify([this._periodNow(), now.toDateString(), c.energy_meter, c.water_meter, c.energy_price, c.energy_price_entity, c.water_price, c.water_price_entity, c.tariff, src?.[0]]);
+    // A PV-routed tank's grid / solar meters: they tell which heating outside the off-peak hours was solar.
+    const split = src && c.tariff && m.ids.energy_solar && m.ids.energy_grid ? [m.ids.energy_solar, m.ids.energy_grid] : null;
+    const key = JSON.stringify([this._periodNow(), now.toDateString(), c.energy_meter, c.water_meter, c.energy_price, c.energy_price_entity, c.water_price, c.water_price_entity, c.tariff, src?.[0], split]);
     if (this._loading || (key === this._loadKey && Date.now() - this._loadedAt < WH_REFRESH)) return;
     this._loading = true;
     this._loadKey = key;
-    this._load = Promise.all([this._loadCost(now), this._loadStrip(now, src)])
+    this._load = Promise.all([this._loadCost(now), this._loadStrip(now, src, split)])
       .then(([cost, strip]) => {
         this._cost = cost;
         this._strip = strip;
@@ -483,8 +485,9 @@ export class WaterHeaterCard extends RcCard {
     return { period, cur: rows.filter((r) => r.t >= start.getTime()), prev: rows.filter((r) => r.t < start.getTime()) };
   }
 
-  // Today's heating spans and off-peak spans (ms), from midnight.
-  async _loadStrip(now, src) {
+  // Today's heating spans and off-peak spans (ms), from midnight; with a PV-routed tank's [solar, grid] meters, the
+  // heating outside the off-peak hours that only the solar meter counted.
+  async _loadStrip(now, src, split) {
     if (!src) return null;
     const c = this._config;
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -492,18 +495,27 @@ export class WaterHeaterCard extends RcCard {
       type: "history/history_during_period",
       start_time: new Date(start).toISOString(),
       end_time: now.toISOString(),
-      entity_ids: [src[0], c.tariff].filter(Boolean),
+      entity_ids: [src[0], c.tariff, ...(split || [])].filter(Boolean),
       minimal_response: true,
       no_attributes: true,
       significant_changes_only: false,
     });
     const clip = (spans) => spans.map(([a, b]) => [Math.max(a, start), b]).filter(([a, b]) => b > a);
     const end = now.getTime();
-    return {
-      start,
-      runs: clip(whSpans(res?.[src[0]], src[1], end)),
-      off: c.tariff ? clip(whSpans(res?.[c.tariff], (s) => whOffPeak(c.tariff, s), end)) : null,
-    };
+    const runs = clip(whSpans(res?.[src[0]], src[1], end));
+    const off = c.tariff ? clip(whSpans(res?.[c.tariff], (s) => whOffPeak(c.tariff, s), end)) : null;
+    // Heating outside the off-peak hours is solar only when the solar meter rose over it and the grid meter didn't
+    // (a meter is read a little after the power: WH_METER_LAG more at the end); anything else stays at the peak rate.
+    let solar = [];
+    if (split && off) {
+      const rise = (id, [a, b]) => {
+        const v0 = whValueAt(res?.[id], a);
+        const v1 = whValueAt(res?.[id], b + WH_METER_LAG);
+        return v0 != null && v1 != null ? v1 - v0 : null;
+      };
+      solar = runs.flatMap((r) => whOutside(r, off)).filter((x) => rise(split[0], x) > 0 && rise(split[1], x) === 0);
+    }
+    return { start, runs, off, solar };
   }
 
   _money(v) {
@@ -569,10 +581,19 @@ export class WaterHeaterCard extends RcCard {
     const len = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1).getTime() - s.start;
     const at = (t) => Math.min(100, Math.max(0, ((t - s.start) / len) * 100));
     const bar = (cls, [a, b]) => `<i class="${cls}" style="left:${at(a).toFixed(2)}%;width:${(at(b) - at(a)).toFixed(2)}%"></i>`;
-    const peaks = s.off ? s.runs.flatMap((r) => whOutside(r, s.off)) : [];
-    const total = s.runs.reduce((n, [a, b]) => n + b - a, 0);
-    const peak = peaks.reduce((n, [a, b]) => n + b - a, 0);
-    const summary = [this._dur(total), peak >= 60000 && this._t("peak_time", { d: this._dur(peak) })].filter(Boolean).join(" · ");
+    const outside = s.off ? s.runs.flatMap((r) => whOutside(r, s.off)) : [];
+    const sun = s.solar || [];
+    const isSun = ([a, b]) => sun.some(([c, d]) => c === a && d === b);
+    const peaks = outside.filter((x) => !isSun(x));
+    const sum = (xs) => xs.reduce((n, [a, b]) => n + b - a, 0);
+    const total = sum(s.runs);
+    const peak = sum(peaks);
+    const solar = sum(sun);
+    const summary = [
+      this._dur(total),
+      solar >= 60000 && this._t("solar_time", { d: this._dur(solar) }),
+      peak >= 60000 && this._t("peak_time", { d: this._dur(peak) }),
+    ].filter(Boolean).join(" · ");
     const hour = (x) => {
       try {
         return whIntl(Intl.DateTimeFormat, this._lang(), { hour: "numeric" }).format(new Date(day.getFullYear(), day.getMonth(), day.getDate(), x));
@@ -581,13 +602,13 @@ export class WaterHeaterCard extends RcCard {
       }
     };
     const ticks = [0, 6, 12, 18].map((x) => `<span style="left:${(x / 24) * 100}%">${rcEsc(hour(x))}</span>`).join("");
-    const legend = [s.off && ["off", "lg_off_peak"], ["run", "lg_heating"], peak >= 60000 && ["pk", "lg_peak"]]
+    const legend = [s.off && ["off", "lg_off_peak"], ["run", "lg_heating"], solar >= 60000 && ["so", "lg_solar"], peak >= 60000 && ["pk", "lg_peak"]]
       .filter(Boolean)
       .map(([k, l]) => `<span class="${k}">${rcEsc(this._t(l))}</span>`)
       .join("");
     const label = `${this._t("heating_today")}: ${summary}`;
     return `<div class="csh"><span class="cst">${rcEsc(this._t("heating_today"))}</span><span class="cxs">${rcEsc(summary)}</span></div>
-      <div class="tl" role="img" aria-label="${rcEsc(label)}">${(s.off || []).map((x) => bar("hc", x)).join("")}${s.runs.map((x) => bar("run", x)).join("")}${peaks.map((x) => bar("pk", x)).join("")}</div>
+      <div class="tl" role="img" aria-label="${rcEsc(label)}">${(s.off || []).map((x) => bar("hc", x)).join("")}${s.runs.map((x) => bar("run", x)).join("")}${sun.map((x) => bar("so", x)).join("")}${peaks.map((x) => bar("pk", x)).join("")}</div>
       <div class="tk" aria-hidden="true">${ticks}</div><div class="lg" aria-hidden="true">${legend}</div>`;
   }
 
@@ -844,12 +865,14 @@ export class WaterHeaterCard extends RcCard {
     .cgrid .cw .xh { color: var(--wh-water); }
     .cgrid .cs .xh { color: var(--rc-idle); }
     .cx { font-size: 12px; color: var(--secondary-text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    :host { --wh-water: #3b7fd4; --wh-off-peak: #4c6ef5; }
+    /* Solar heating is free: drawn in the theme's success green, apart from the amber of the sun. */
+    :host { --wh-water: #3b7fd4; --wh-off-peak: #4c6ef5; --wh-solar-heat: var(--rc-ok); }
     .tl { position: relative; height: 30px; margin-top: 8px; border-radius: 8px; overflow: hidden; background: var(--secondary-background-color, rgba(127,127,127,.08)); }
     .tl i { position: absolute; top: 0; bottom: 0; }
     .tl .hc { background: color-mix(in srgb, var(--wh-off-peak) 18%, transparent); }
-    .tl .run, .tl .pk { top: 7px; bottom: 7px; min-width: 3px; border-radius: 4px; background: var(--wh-heating); }
+    .tl .run, .tl .pk, .tl .so { top: 7px; bottom: 7px; min-width: 3px; border-radius: 4px; background: var(--wh-heating); }
     .tl .pk { background: var(--rc-alert); }
+    .tl .so { background: var(--wh-solar-heat); }
     .tk { position: relative; height: 15px; margin-top: 3px; font-size: 11px; color: var(--secondary-text-color); }
     .tk span { position: absolute; top: 0; white-space: nowrap; }
     .tk span + span { transform: translateX(-50%); }
@@ -858,6 +881,7 @@ export class WaterHeaterCard extends RcCard {
     .lg .off::before { background: color-mix(in srgb, var(--wh-off-peak) 40%, transparent); }
     .lg .run::before { background: var(--wh-heating); }
     .lg .pk::before { background: var(--rc-alert); }
+    .lg .so::before { background: var(--wh-solar-heat); }
     @container (max-width: 300px) {
       .cgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .cgrid > :nth-child(3):last-child { grid-column: 1 / -1; }

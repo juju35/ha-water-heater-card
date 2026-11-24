@@ -99,6 +99,8 @@ export default {
     lg_off_peak: "Hora valle",
     lg_heating: "Calentando",
     lg_peak: "Hora punta",
+    lg_solar: "Solar",
+    solar_time: "{d} con energía solar",
     ed_cost: "Coste y calentamiento",
     ed_energy_meter: "Contador eléctrico",
     ed_energy_meter_helper: "El contador de energía propio del termo (kWh, con estadísticas a largo plazo)",

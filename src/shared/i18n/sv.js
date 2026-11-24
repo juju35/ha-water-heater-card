@@ -99,6 +99,8 @@ export default {
     lg_off_peak: "Lågtaxa",
     lg_heating: "Uppvärmning",
     lg_peak: "Högtaxa",
+    lg_solar: "Sol",
+    solar_time: "{d} på solenergi",
     ed_cost: "Kostnad och uppvärmning",
     ed_energy_meter: "Elmätare",
     ed_energy_meter_helper: "Tankens egen energimätare (kWh, med långtidsstatistik)",

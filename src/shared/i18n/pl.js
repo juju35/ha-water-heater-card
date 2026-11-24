@@ -101,6 +101,8 @@ export default {
     lg_off_peak: "Taryfa pozaszczytowa",
     lg_heating: "Grzanie",
     lg_peak: "Taryfa szczytowa",
+    lg_solar: "Słońce",
+    solar_time: "{d} z energii słonecznej",
     ed_cost: "Koszt i grzanie",
     ed_energy_meter: "Licznik prądu",
     ed_energy_meter_helper: "Własny licznik energii zasobnika (kWh, ze statystykami długoterminowymi)",

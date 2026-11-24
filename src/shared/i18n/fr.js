@@ -99,6 +99,8 @@ export default {
     lg_off_peak: "Heures creuses",
     lg_heating: "Chauffe",
     lg_peak: "Heures pleines",
+    lg_solar: "Solaire",
+    solar_time: "{d} en solaire",
     ed_cost: "Coût et chauffe",
     ed_energy_meter: "Compteur électrique",
     ed_energy_meter_helper: "Le compteur d’énergie du ballon (kWh, avec statistiques long terme)",

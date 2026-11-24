@@ -499,12 +499,48 @@ test("heating strip: today's spans on the off-peak hours, the part at the peak r
   assert.equal((html.match(/<i class="run"/g) || []).length, 2);
   assert.equal((html.match(/<i class="pk"/g) || []).length, 1);
   assert.equal((html.match(/<i class="hc"/g) || []).length, 1);
+  assert.doesNotMatch(html, /<i class="so"/, "no solar without the tank's grid / solar meters");
   // Without a tariff nor a meter, no strip and no reading; show_cost / show_timeline: false hide them.
   const plain = make("water-heater-card", HEATER, costHass());
   assert.equal(plain._load, undefined);
   const off = make("water-heater-card", { ...COST, show_cost: false, show_timeline: false }, costHass());
   assert.equal(off._load, undefined);
   assert.doesNotMatch(off.shadowRoot.innerHTML, /class="tl"|class="cpm"/);
+});
+
+test("heating strip: a PV-routed tank's heating outside the off-peak hours is solar only when the solar meter counted it", async () => {
+  const midnight = new Date(new Date().setHours(0, 0, 0, 0)).getTime();
+  const s = (state, t) => ({ s: state, lu: (midnight + t) / 1000 });
+  const PV = { ...COST, entities: { energy_solar: "sensor.tank_solar", energy_grid: "sensor.tank_grid" } };
+  // The 18:00-18:15 run (outside the off-peak hours): which meter counted it?
+  const strip = async (solar, grid) => {
+    const h = costHass();
+    for (const id of ["sensor.tank_solar", "sensor.tank_grid"])
+      h.states[id] = { entity_id: id, state: "1", attributes: { unit_of_measurement: "kWh", device_class: "energy", state_class: "total_increasing" } };
+    const base = h.callWS;
+    h.callWS = async (msg) => {
+      const res = await base(msg);
+      return msg.type === "history/history_during_period" ? { ...res, "sensor.tank_solar": solar.map(([v, t]) => s(v, t)), "sensor.tank_grid": grid.map(([v, t]) => s(v, t)) } : res;
+    };
+    const card = make("water-heater-card", PV, h);
+    await card._load;
+    return { html: card.shadowRoot.innerHTML, hist: h.ws.find((m) => m.type === "history/history_during_period") };
+  };
+  // Only the solar meter rose (read a minute after the run): solar, in the solar colour, not the peak rate.
+  let { html, hist } = await strip([["0", 0], ["0.5", 18.27 * H]], [["0.6", 0], ["1.2", 3 * H]]);
+  assert.deepEqual(json(hist.entity_ids), ["sensor.explorer_power", "sensor.tariff", "sensor.tank_solar", "sensor.tank_grid"]);
+  assert.equal((html.match(/<i class="so"/g) || []).length, 1);
+  assert.equal((html.match(/<i class="pk"/g) || []).length, 0);
+  assert.match(html, /1 h 15 · 15 min on solar</);
+  assert.match(html, /<span class="so">Solar<\/span>/);
+  // The grid meter rose too: not sure it was solar, so it stays at the peak rate.
+  ({ html } = await strip([["0", 0], ["0.5", 18.27 * H]], [["0.6", 0], ["0.9", 18.2 * H]]));
+  assert.equal((html.match(/<i class="so"/g) || []).length, 0);
+  assert.equal((html.match(/<i class="pk"/g) || []).length, 1);
+  assert.match(html, /15 min at peak rate/);
+  // No meter moved: not solar either.
+  ({ html } = await strip([["0", 0]], [["0.6", 0]]));
+  assert.equal((html.match(/<i class="so"/g) || []).length, 0);
 });
 
 test("cost helpers: periods, off-peak states, peak parts, tally without prices", () => {

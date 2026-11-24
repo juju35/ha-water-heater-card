@@ -101,6 +101,8 @@ export default {
     lg_off_peak: "Льготный тариф",
     lg_heating: "Нагрев",
     lg_peak: "Пиковый тариф",
+    lg_solar: "Солнечная",
+    solar_time: "{d} от солнечной энергии",
     ed_cost: "Стоимость и нагрев",
     ed_energy_meter: "Счётчик электроэнергии",
     ed_energy_meter_helper: "Собственный счётчик энергии бойлера (kWh, с долгосрочной статистикой)",

@@ -99,6 +99,8 @@ export default {
     lg_off_peak: "Vazio",
     lg_heating: "Aquecimento",
     lg_peak: "Ponta",
+    lg_solar: "Solar",
+    solar_time: "{d} com energia solar",
     ed_cost: "Custo e aquecimento",
     ed_energy_meter: "Contador de eletricidade",
     ed_energy_meter_helper: "O contador de energia próprio do termoacumulador (kWh, com estatísticas de longo prazo)",

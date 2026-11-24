@@ -99,6 +99,8 @@ export default {
     lg_off_peak: "Off-peak",
     lg_heating: "Heating",
     lg_peak: "Peak rate",
+    lg_solar: "Solar",
+    solar_time: "{d} on solar",
     ed_cost: "Cost and heating",
     ed_energy_meter: "Electricity meter",
     ed_energy_meter_helper: "The tank’s own energy meter (kWh, with long-term statistics)",

@@ -99,6 +99,8 @@ export default {
     lg_off_peak: "Daltarief",
     lg_heating: "Verwarmen",
     lg_peak: "Piektarief",
+    lg_solar: "Zonne-energie",
+    solar_time: "{d} op zonne-energie",
     ed_cost: "Kosten en verwarmen",
     ed_energy_meter: "Elektriciteitsmeter",
     ed_energy_meter_helper: "De eigen energiemeter van de boiler (kWh, met langetermijnstatistieken)",
