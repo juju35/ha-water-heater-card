@@ -8,6 +8,7 @@ import "./i18n-helpers.js";
 import "./water-heater.js";
 import "./cost-heating.js";
 import "./helpers.js";
+import "./in-place-redraw.js";
 import "./base-card.js";
 import "./mini-cards.js";
 import "./common-styles.js";

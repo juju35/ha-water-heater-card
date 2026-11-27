@@ -5,6 +5,7 @@ import { WH_ICONS } from "./core.js";
 import { WH_ROOM_CX } from "./banner.js";
 import { WaterHeaterCard } from "./card.js";
 import { WH_HELPERS, whSchema } from "./editor.js";
+import { rcMorph } from "../shared/in-place-redraw.js";
 
 export class WaterHeaterMiniCard extends rcMini(
   WaterHeaterCard,
@@ -55,11 +56,12 @@ export class WaterHeaterMiniCard extends rcMini(
       `<svg class="ringb" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="17" fill="none" stroke="color-mix(in srgb, var(--c) 18%, transparent)" stroke-width="4"/><circle cx="20" cy="20" r="17" fill="none" stroke="var(--c)" stroke-width="4" stroke-linecap="round" stroke-dasharray="${((L * pct) / 100).toFixed(1)} 999" transform="rotate(-90 20 20)"/>${fill}</svg>`;
     if (banner) {
       const c = this._config;
-      this.shadowRoot.innerHTML = `<style>${RC_BASE_STYLES}${this.constructor.styles}</style>
-        <ha-card class="lvl-${m.state} bn">${this._banner(m, rest ? `<div class="rs">${rest}</div>` : "", night, scene, ring(""), WH_ROOM_CX, state)}</ha-card>`;
+      rcMorph(this.shadowRoot, `<style>${RC_BASE_STYLES}${this.constructor.styles}</style>
+        <ha-card class="lvl-${m.state} bn">${this._banner(m, rest ? `<div class="rs">${rest}</div>` : "", night, scene, ring(""), WH_ROOM_CX, state)}</ha-card>`);
+      this._rewire();
       const root = this.shadowRoot;
-      if (c.navigation_path) rcBindNav(root.querySelector(".head"), c.navigation_path);
-      for (const el of root.querySelectorAll(".r")) el.addEventListener("click", () => rcMoreInfo(this, el.dataset.id));
+      if (c.navigation_path) rcBindNav(root.querySelector(".head"), c.navigation_path, this._on);
+      for (const el of root.querySelectorAll(".r")) el.addEventListener("click", () => rcMoreInfo(this, el.dataset.id), this._on);
       this._fitPill();
       return;
     }

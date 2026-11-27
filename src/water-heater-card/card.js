@@ -650,8 +650,8 @@ export class WaterHeaterCard extends RcCard {
       root.querySelector(sel)?.addEventListener("click", (ev) => {
         ev.stopPropagation();
         fn(ev);
-      });
-    root.querySelector(".sc")?.addEventListener("click", () => rcMoreInfo(this, m.id));
+      }, this._on);
+    root.querySelector(".sc")?.addEventListener("click", () => rcMoreInfo(this, m.id), this._on);
     // The cost's period: shown at once, its statistics read in the background.
     for (const b of root.querySelectorAll(".per") || []) {
       b.addEventListener("click", (ev) => {
@@ -661,14 +661,14 @@ export class WaterHeaterCard extends RcCard {
           this._period = p;
           this._render();
         }
-      });
+      }, this._on);
     }
     for (const b of root.querySelectorAll(".md") || []) {
       b.addEventListener("click", (ev) => {
         ev.stopPropagation();
         const mode = b.dataset?.mode ?? b.getAttribute?.("data-mode");
         if (mode && mode !== m.mode) rcCall(h, "water_heater", "set_operation_mode", { entity_id: m.id, operation_mode: mode });
-      });
+      }, this._on);
     }
     on(".act-boost", () => rcCall(h, m.boostId.split(".")[0], m.boostOn ? "turn_off" : "turn_on", { entity_id: m.boostId }));
     on(".act-away", () =>

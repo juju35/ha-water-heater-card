@@ -2,6 +2,7 @@
 import { RC_HOLD_MS, RC_MOVE_PX, RC_REPEAT_MS } from "./core.js";
 import { rcBindNav, rcCall, rcEsc, rcLang, rcMoreInfo, rcPluralKey, rcT } from "./helpers.js";
 import { RC_BASE_STYLES } from "./common-styles.js";
+import { rcMorph } from "./in-place-redraw.js";
 
 export class RcCard extends HTMLElement {
   static getStubConfig(hass) {
@@ -138,22 +139,32 @@ export class RcCard extends HTMLElement {
       </button>`;
   }
 
+  // The listeners of the previous drawing dropped, and the options ({ signal }) of the new ones (`this._on`): the
+  // nodes drawn in place (see rcMorph) are wired again for the items they now show, never twice.
+  _rewire() {
+    this._ac?.abort();
+    this._ac = typeof AbortController === "function" ? new AbortController() : null;
+    this._on = this._ac ? { signal: this._ac.signal } : undefined;
+    return this._on;
+  }
+
   _paint(level, head, tiles, extraClass = "") {
     // The tile or control with the keyboard focus keeps it through the redraw (a toggle, a step or a two-tap
     // confirmation from the keyboard): tiles by their data-id, controls by their data-k.
     const active = this._byPointer ? null : this.shadowRoot.activeElement;
     const focused = active?.dataset?.id;
     const focusKey = active?.dataset?.k;
-    this.shadowRoot.innerHTML = `
+    rcMorph(this.shadowRoot, `
       <style>${RC_BASE_STYLES}${this.constructor.styles}</style>
       <ha-card class="lvl-${level}${extraClass}${this._tiles() ? " layout-tiles" : ""}">
         ${head}
         ${tiles ? `<div class="grid" style="--cols:${this._cols()}">${tiles}</div>` : ""}
         ${this._afterGrid()}
-      </ha-card>`;
+      </ha-card>`);
+    this._rewire();
     const root = this.shadowRoot;
-    root.querySelector(".pill.action")?.addEventListener("click", (ev) => this._allOff(ev));
-    if (this._config.navigation_path) rcBindNav(root.querySelector(".head"), this._config.navigation_path);
+    root.querySelector(".pill.action")?.addEventListener("click", (ev) => this._allOff(ev), this._on);
+    if (this._config.navigation_path) rcBindNav(root.querySelector(".head"), this._config.navigation_path, this._on);
     for (const el of root.querySelectorAll(".tile")) {
       this._bindTile(el, (this._items || []).find((i) => i.id === el.dataset.id));
       if (focused && el.dataset.id === focused) el.focus({ preventScroll: true });
@@ -201,7 +212,7 @@ export class RcCard extends HTMLElement {
         this._released();
         onHold();
       }, RC_HOLD_MS);
-    });
+    }, this._on);
     el.addEventListener("pointermove", (ev) => {
       if (!start || mode === "hold") return;
       const dx = ev.clientX - start.x;
@@ -218,7 +229,7 @@ export class RcCard extends HTMLElement {
         this._released();
       }
       if (mode === "drag") drag.move(ev.clientX);
-    });
+    }, this._on);
     const end = (ev, cancelled) => {
       clearTimeout(timer);
       if (!start) return;
@@ -242,10 +253,10 @@ export class RcCard extends HTMLElement {
       clearTimeout(timer);
       start = null;
       this._released();
-    });
-    el.addEventListener("pointerup", (ev) => end(ev, false));
-    el.addEventListener("pointercancel", (ev) => end(ev, true));
-    el.addEventListener("contextmenu", (ev) => ev.preventDefault());
+    }, this._on);
+    el.addEventListener("pointerup", (ev) => end(ev, false), this._on);
+    el.addEventListener("pointercancel", (ev) => end(ev, true), this._on);
+    el.addEventListener("contextmenu", (ev) => ev.preventDefault(), this._on);
     el.addEventListener("keydown", (ev) => {
       if ((ev.key === "Enter" && ev.shiftKey) || ev.key === "ContextMenu") {
         ev.preventDefault();
@@ -259,11 +270,11 @@ export class RcCard extends HTMLElement {
         lastStep = ev.timeStamp;
         drag.step(ev.key === "ArrowRight" ? 10 : -10);
       }
-    });
+    }, this._on);
     // The arrow released: the stepped level goes out now rather than after the pause.
     el.addEventListener("keyup", (ev) => {
       if (ev.key === "ArrowLeft" || ev.key === "ArrowRight") drag?.flush?.();
-    });
+    }, this._on);
   }
 
   // End of a press: renders now what an update brought during it.
