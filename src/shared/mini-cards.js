@@ -11,6 +11,7 @@ import { RC_VERSION } from "./core.js";
 import { rcOutside, rcUnzoom, rcZoomClick, rcZoomIcon, watchOutside } from "./overviews.js";
 import { rcBindNav, rcEsc, rcLang, rcMemo, rcMoreInfo, rcT } from "./helpers.js";
 import { RC_BASE_STYLES, RC_MINI_STYLES } from "./common-styles.js";
+import { rcMorph } from "./in-place-redraw.js";
 
 export const rcMini = (Base, tag, styles, { alertsOnly = false } = {}) =>
   class extends Base {
@@ -71,7 +72,7 @@ export const rcMini = (Base, tag, styles, { alertsOnly = false } = {}) =>
       const st = allOff
         ? `<button class="st action" title="${rcEsc(this._t("turn_all_off"))}"><ha-icon icon="mdi:power"></ha-icon><span class="pt">${rcEsc(status)}</span></button>`
         : `<span class="st" title="${rcEsc(status)}"><span class="pt">${rcEsc(status)}</span></span>`;
-      this.shadowRoot.innerHTML = `
+      rcMorph(this.shadowRoot, `
         <style>${RC_BASE_STYLES}${this.constructor.styles}</style>
         <ha-card class="lvl-${level}${cls}">
           <div class="mini">
@@ -84,11 +85,12 @@ export const rcMini = (Base, tag, styles, { alertsOnly = false } = {}) =>
               <div class="rs">${chips}</div>
             </div>
           </div>
-        </ha-card>`;
+        </ha-card>`);
+      this._rewire();
       const root = this.shadowRoot;
-      if (nav) rcBindNav(root.querySelector(".head"), nav);
-      root.querySelector(".st.action")?.addEventListener("click", (ev) => this._allOff(ev));
-      for (const el of root.querySelectorAll(".r")) el.addEventListener("click", () => rcMoreInfo(this, el.dataset.id));
+      if (nav) rcBindNav(root.querySelector(".head"), nav, this._on);
+      root.querySelector(".st.action")?.addEventListener("click", (ev) => this._allOff(ev), this._on);
+      for (const el of root.querySelectorAll(".r")) el.addEventListener("click", () => rcMoreInfo(this, el.dataset.id), this._on);
     }
 
     // Zoom button at the end of the header, top right in both views, added once per render.
@@ -96,8 +98,18 @@ export const rcMini = (Base, tag, styles, { alertsOnly = false } = {}) =>
     // keyboard focus (Enter / Space: no click count) on the button that replaced this one.
     _addZoom() {
       const head = this._config.zoom && this.shadowRoot.querySelector(".head");
+      // Kept from the previous drawing (data-rc-own): brought up to date, or dropped when the option is off.
+      const found = this.shadowRoot.querySelector(".head > .zoom");
+      const kept = found?.nodeType === 1 ? found : null;
+      if (kept && (!head || kept.parentNode !== head)) kept.remove();
+      else if (kept) {
+        kept.title = this._t(this._zoomed ? "zoom_out" : "zoom_in");
+        kept.querySelector("ha-icon")?.setAttribute("icon", rcZoomIcon(this));
+        return;
+      }
       if (!head || head.querySelector(".zoom")) return;
       const button = document.createElement("button");
+      button.setAttribute?.("data-rc-own", "");
       button.className = "zoom";
       button.title = this._t(this._zoomed ? "zoom_out" : "zoom_in");
       button.innerHTML = `<ha-icon icon="${rcZoomIcon(this)}"></ha-icon>`;

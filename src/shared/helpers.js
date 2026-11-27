@@ -47,11 +47,11 @@ export const rcNavigate = (path) => {
 };
 
 // Wires a card header to its `navigation_path`: click, and Enter on the header itself.
-export const rcBindNav = (head, path) => {
-  head.addEventListener("click", () => rcNavigate(path));
+export const rcBindNav = (head, path, on) => {
+  head.addEventListener("click", () => rcNavigate(path), on);
   head.addEventListener("keydown", (ev) => {
     if (ev.key === "Enter" && ev.target === head) rcNavigate(path);
-  });
+  }, on);
 };
 
 export const rcUnavailable = (st) => ["unavailable", "unknown"].includes(st.state);

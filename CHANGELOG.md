@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.6 - 2026-11-27
+
+### Fixes
+- Updates of Home Assistant no longer rewrite the whole card: it is brought up to date in place, so the page no longer jumps under you, the animations no longer start over and the focus, hover and inner scroll stay.
+- Compact card: the zoom button follows the view without being redrawn.
+
 ## 1.4.5 - 2026-11-27
 
 ### Fixes
